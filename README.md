@@ -17,6 +17,7 @@
 ```bash
 # 1) 進到專案資料夾
 cd hello-github-starter
+python src/hello.py
 
 # 2) 初始化 Git
 git init
