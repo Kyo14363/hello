@@ -1,0 +1,2 @@
+Hello, Gitmy!
+agy-flag: dangerously-skip-permissions
