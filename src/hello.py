@@ -1,5 +1,11 @@
+def greet():
+    return "Hello, Gitmy! 👋"
+
+
 def main():
-    print("Hello, Gitmy! 👋")
+    print(greet())
+
 
 if __name__ == "__main__":
     main()
+
