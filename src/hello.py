@@ -2,6 +2,10 @@ def greet():
     return "Hello, Gitmy! 👋"
 
 
+def farewell(name):
+    return "Goodbye, " + name + "! 👋"
+
+
 def main():
     print(greet())
 
