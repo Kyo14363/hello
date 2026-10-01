@@ -18,6 +18,7 @@ Python 3.10+ standard library only. Console output is ASCII only. The key is
 never printed or written; error text is masked; C6 scans for leaks.
 
 Criteria (per model; verdict PASS / FAIL / BLOCKED):
+  (thresholds shown for set 1; set 2 uses 18/20, 18/20, 54/60)
   C1 connect : >= 7/8 of requests HTTP 200; every 200 body schema-valid, all
                probabilities in [0,1], choice (and score) probabilities sum
                to 1 +- 0.02.
@@ -45,8 +46,17 @@ key over plain http to a non-loopback host.
 Before sending, the question set is self-checked (every question needs
 non-empty instructions; noul needs criteria.true/false; the cloud API answers
 400 otherwise). A bad set is a config error: RESULT: FAIL, nothing is sent.
-Last stdout line: RESULT: ALL PASS (exit 0) | RESULT: FAIL (...) (exit 1) |
-RESULT: BLOCKED (...) (exit 2). Any FAIL wins over BLOCKED.
+Question sets (--set): 1 = 8 cases (default; thresholds 7/8, 7/8, 90% of
+pairs), 2 = 20 cases (thresholds 18/20, 18/20, 54/60 pairs; plus a report-only
+WAKE-ACCEPTANCE section for cases 3-5). Thresholds are ratios of the set size.
+The header prints question_set_sha256 = sha256 of the canonical JSON
+(sort_keys, ensure_ascii=False, separators=(",",":")) of the set's cases,
+expected answers and per-variant questions (instructions + criteria).
+Before RESULT, one line per model:
+  MODEL VERDICT <model>: PASS|FAIL|BLOCKED (variant=<orig|B>; failed=<C..|none>)
+Last stdout line: RESULT: PASS (models passing: <list>) (exit 0) if ANY model
+passes | else RESULT: FAIL (...) (exit 1) if any model FAILs | else
+RESULT: BLOCKED (...) (exit 2).
 
 Key file: ONE line (expected `apikey_...`, 108 chars). The first non-empty
 line is read and stripped (UTF-8 with/without BOM, or UTF-16 with BOM).
@@ -55,6 +65,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import io
 import json
 import math
@@ -86,7 +97,7 @@ ROUTE_CRITERIA = {
     "none": "不用交：結案、致謝、純分享",
 }
 
-TOOL_VERSION = "0.2.0"
+TOOL_VERSION = "0.3.0"
 SYSTEM_ONE_PATH = "/v1/systemone"
 MODELS_PATH = "/v1/models"
 CLOUD_DEFAULT_BASE_URL = "https://api.typesafe.ai"   # typesafe-sdk 0.7.2 DEFAULT_BASE_URL
@@ -98,9 +109,6 @@ OLLAMA_KEY = "ollama"
 KEY_ENV = "TYPESAFE_API_KEY"
 KEY_PREFIX, KEY_LEN = "apikey_", 108
 
-C1_MIN_OK_RATIO = 7 / 8
-C2_MIN_RATIO = 7 / 8
-C3_MIN_RATIO = 0.90
 PROB_TOL = 0.02
 
 PASS, FAIL, BLOCKED, INFO = "PASS", "FAIL", "BLOCKED", "INFO"
@@ -144,7 +152,7 @@ def questions_for(variant: str) -> dict:
 QUESTIONS = questions_for("orig")
 
 # expect: route=<ROUTE_CRITERIA key>, wake=<bool>, urgency=<0 低|1 中|2 高>
-CASES = [
+CASES_SET1 = [
     {"id": "case1_write_check004", "text": "spec #49 合了，請寫 check_004",
      "expect": {"route": "pig", "wake": True, "urgency": 1}},
     {"id": "case2_impl_farewell", "text": "閘門已宣告，請改 src/hello.py 加 farewell",
@@ -164,8 +172,85 @@ CASES = [
 ]
 
 
+# Set 2: 20 cases, same three questions / ROUTE_CRITERIA / wordings as set 1.
+CASES_SET2 = [
+    {"id": "s2c01_open_gate", "text": "spec 005 合了，main 是 abc1234，可以開閘門",
+     "expect": {"route": "pig", "wake": True, "urgency": 1}},
+    {"id": "s2c02_gate_rejected", "text": "閘門 check_005 被退回：G3 的反例沒有變紅",
+     "expect": {"route": "pig", "wake": True, "urgency": 1}},
+    {"id": "s2c03_gate_pr_merge", "text": "005 的閘門 PR 開好了，sha256 貼在內文，請合",
+     "expect": {"route": "cat", "wake": True, "urgency": 1}},
+    {"id": "s2c04_impl_pr_wait", "text": "實作 PR 推上去了，check_005 本機 ALL PASS，等驗收",
+     "expect": {"route": "cat", "wake": True, "urgency": 1}},
+    {"id": "s2c05_branch_updated", "text": "雲端 agent 說分支更新好了，head 是 9f2e1aa，衝突已解",
+     "expect": {"route": "cat", "wake": True, "urgency": 1}},
+    {"id": "s2c06_impl_g1_g3", "text": "閘門 #60 已合，請改 src/hello.py 讓 G1\u2013G3 變綠",
+     "expect": {"route": "dog", "wake": True, "urgency": 1}},
+    {"id": "s2c07_impl_rejected", "text": "實作被退回：diff 動到 README，超出允許的檔案",
+     "expect": {"route": "dog", "wake": True, "urgency": 1}},
+    {"id": "s2c08_agy_empty_diff", "text": "agy 跑完但 git diff 是空的，請換 grok CLI 重做",
+     "expect": {"route": "dog", "wake": True, "urgency": 1}},
+    {"id": "s2c09_who_does_it", "text": "小狗和小豬都說這題該對方做，請定一下誰做",
+     "expect": {"route": "sheep", "wake": True, "urgency": 2}},
+    {"id": "s2c10_spec_vs_gate", "text": "spec 的 R2 跟閘門的 G2 互相矛盾，要照哪個？",
+     "expect": {"route": "sheep", "wake": True, "urgency": 2}},
+    {"id": "s2c11_split_005", "text": "奈 神剛說新工單 005 要做 shout()，請拆給大家",
+     "expect": {"route": "sheep", "wake": True, "urgency": 1}},
+    {"id": "s2c12_main_red", "text": "main 上 check_003 突然變紅，不知道是哪個 PR 弄壞的",
+     "expect": {"route": "sheep", "wake": True, "urgency": 2}},
+    {"id": "s2c13_api_402", "text": "雲端 API 回 402，抵免額好像用完了",
+     "expect": {"route": "owner", "wake": True, "urgency": 2}},
+    {"id": "s2c14_owner_merge", "text": "這張要合進 kyo-work main，規則說要奈 神按",
+     "expect": {"route": "owner", "wake": True, "urgency": 1}},
+    {"id": "s2c15_console_login", "text": "之後有空要登入 console.typesafe.ai 才看得到扣款",
+     "expect": {"route": "owner", "wake": False, "urgency": 0}},
+    {"id": "s2c16_gate_typo", "text": "閘門說明有個錯字，不影響結果，之後順手改就好",
+     "expect": {"route": "pig", "wake": False, "urgency": 0}},
+    {"id": "s2c17_fyi_ollama", "text": "FYI 小狗：畚箕的 Ollama 已經升到 0.36，不用回",
+     "expect": {"route": "dog", "wake": False, "urgency": 0}},
+    {"id": "s2c18_ack", "text": "收到，我等你的 PR",
+     "expect": {"route": "none", "wake": False, "urgency": 0}},
+    {"id": "s2c19_wrap_up", "text": "今天先到這裡，大家辛苦了",
+     "expect": {"route": "none", "wake": False, "urgency": 0}},
+    {"id": "s2c20_running_local", "text": "我開始跑本機題組了，大概十分鐘",
+     "expect": {"route": "none", "wake": False, "urgency": 0}},
+]
+
+CASES = CASES_SET1          # backwards-compatible alias (set 1)
+ALL_CASES = CASES_SET1 + CASES_SET2
+
+# Thresholds per set, as (numerator, denominator) ratios of the set size.
+#   c1: share of requests that must be HTTP 200 (schema rules on top)
+#   c2: share of cases with correct route AND (separately) correct wake
+#   c3: share of stability units (pairs by default) identical across repeats
+# Set 1 values are the v0.2.0 values (7/8, 7/8, 90%) - unchanged.
+SETS = {
+    "1": {"cases": CASES_SET1, "c1": (7, 8), "c2": (7, 8), "c3": (9, 10), "c3_label": "90%",
+          "wake_acceptance": []},
+    "2": {"cases": CASES_SET2, "c1": (18, 20), "c2": (18, 20), "c3": (54, 60), "c3_label": "54/60",
+          "wake_acceptance": ["s2c03_gate_pr_merge", "s2c04_impl_pr_wait", "s2c05_branch_updated"]},
+}
+
+
+def _ratio(t) -> float:
+    return t[0] / t[1]
+
+
 def case_state(case: dict):
     return {"message": case["text"]}
+
+
+def question_set_canonical(set_id: str) -> str:
+    """Canonical JSON of a set: cases (id, state as sent, expected) and, per route
+    wording variant, the full questions (instructions + criteria)."""
+    doc = {"set": set_id,
+           "cases": [{"id": c["id"], "state": case_state(c), "expect": c["expect"]} for c in SETS[set_id]["cases"]],
+           "questions": {v: questions_for(v) for v in VARIANTS}}
+    return json.dumps(doc, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def question_set_sha256(set_id: str) -> str:
+    return hashlib.sha256(question_set_canonical(set_id).encode("utf-8")).hexdigest()
 
 
 # Optional --ping connectivity check (the Ollama blog example; not scored).
@@ -620,18 +705,21 @@ class Runner:
         self.started = datetime.now().astimezone()
         self.base = (a.base_url or (CLOUD_DEFAULT_BASE_URL if a.line == "cloud" else OLLAMA_DEFAULT_BASE_URL)).rstrip("/")
         self.models = a.model or [CLOUD_DEFAULT_MODEL if a.line == "cloud" else OLLAMA_DEFAULT_MODEL]
-        self.cases = [c for c in CASES if not a.case or c["id"] in a.case]
+        self.set = SETS[a.set]
+        self.cases = [c for c in self.set["cases"] if not a.case or c["id"] in a.case]
+        self.qs_sha = question_set_sha256(a.set)
         self.variants = VARIANTS if a.variant == "both" else [a.variant]
         self.p("jev_smoke %s line=%s base_url=%s models=%s cases=%d repeats=%d variants=%s stable_unit=%s" % (
             TOOL_VERSION, a.line, self.base, ",".join(self.models), len(self.cases), a.repeats,
             ",".join(self.variants), a.stable_unit))
+        self.p("set=%s question_set_sha256=%s" % (a.set, self.qs_sha))
 
         # pre-send self-check of the question set (cloud answers 400 otherwise)
         cfg = ["questions[%s].%s" % (v, e) for v in self.variants for e in validate_question_set(questions_for(v))]
         if a.ping:
             cfg += ["PING_QUESTIONS." + e for e in validate_question_set(PING_QUESTIONS)]
         if a.case:
-            unknown = sorted(set(a.case) - {c["id"] for c in CASES})
+            unknown = sorted(set(a.case) - {c["id"] for c in self.set["cases"]})
             if unknown:
                 cfg.append("unknown --case ids %s" % unknown)
         if not self.cases:
@@ -716,6 +804,7 @@ class Runner:
                     top = top_answers(d["answers"])
                     rec["top"] = top
                     rec["score"] = d["answers"]["urgency"].get("score")
+                    rec["wake_noul"] = d["answers"]["wake"].get("noul")
                     exp = case["expect"]
 
                     def mark(k):
@@ -763,15 +852,16 @@ class Runner:
         n_schema_bad = sum(1 for r in recs if r.get("schema_errors"))
         blk_txt = ", ".join("%s x%d" % kv for kv in sorted(Counter(r["code"] for r in recs if r["state"] == BLOCKED).items()))
         ev = {}
+        c1t, c2t, c3t = self.set["c1"], self.set["c2"], self.set["c3"]
         # C1 connect
         if n_schema_bad:
             c1 = (FAIL, "%d/%d HTTP 200 but %d response(s) with schema errors" % (n_200, total, n_schema_bad))
-        elif total and n_block > total * (1 - C1_MIN_OK_RATIO):
+        elif total and n_block > total * (1 - _ratio(c1t)):
             c1 = (BLOCKED, "%d/%d requests blocked (%s)" % (n_block, total, blk_txt))
-        elif total and n_200 >= C1_MIN_OK_RATIO * total - 1e-9:
+        elif total and n_200 >= _ratio(c1t) * total - 1e-9:
             c1 = (PASS, "%d/%d HTTP 200, schema ok" % (n_200, total))
         else:
-            c1 = (FAIL, "%d/%d HTTP 200 (need >= 7/8)" % (n_200, total))
+            c1 = (FAIL, "%d/%d HTTP 200 (need >= %d/%d)" % (n_200, total, c1t[0], c1t[1]))
         ev["C1_connect"] = {"state": c1[0], "detail": c1[1], "requests": total, "http_200": n_200,
                             "blocked": n_block, "schema_errors": n_schema_bad}
         # per-case modal answers over repeats
@@ -798,7 +888,7 @@ class Runner:
         wrong_routes = ["%s:%s!=%s" % (c["id"].split("_")[0], md(c, "route"), c["expect"]["route"])
                         for c in self.cases if md(c, "route") != c["expect"]["route"]]
         wrong_wake = [c["id"].split("_")[0] for c in self.cases if md(c, "wake") != c["expect"]["wake"]]
-        c2_ok = rc >= C2_MIN_RATIO * nc - 1e-9 and wc >= C2_MIN_RATIO * nc - 1e-9 and not ubad
+        c2_ok = rc >= _ratio(c2t) * nc - 1e-9 and wc >= _ratio(c2t) * nc - 1e-9 and not ubad
         d2 = "route %d/%d, wake %d/%d, urgency(argmax) within 1 level %d/%d (exact %d/%d)" % (
             rc, nc, wc, nc, nc - len(ubad), nc, uexact, nc)
         c2 = (PASS, d2) if c2_ok else ((BLOCKED, d2 + "; some cases blocked") if any_blocked else (FAIL, d2))
@@ -824,11 +914,11 @@ class Runner:
         pr = pairs_stable / n_pairs if n_pairs else 0.0
         cr = cases_stable / nc if nc else 0.0
         ratio = pr if self.a.stable_unit == "pair" else cr
-        d3 = "unit=%s: pairs %d/%d (%.1f%%), cases %d/%d (%.1f%%); need >= 90%%" % (
-            self.a.stable_unit, pairs_stable, n_pairs, pr * 100, cases_stable, nc, cr * 100)
+        d3 = "unit=%s: pairs %d/%d (%.1f%%), cases %d/%d (%.1f%%); need >= %s" % (
+            self.a.stable_unit, pairs_stable, n_pairs, pr * 100, cases_stable, nc, cr * 100, self.set["c3_label"])
         if R < 2:
             c3 = (BLOCKED, "needs --repeats >= 2; " + d3)
-        elif ratio >= C3_MIN_RATIO - 1e-9:
+        elif ratio >= _ratio(c3t) - 1e-9:
             c3 = (PASS, d3)
         elif any_blocked:
             c3 = (BLOCKED, d3 + "; some cases blocked")
@@ -860,6 +950,24 @@ class Runner:
             ev["C5_cost"]["mem_note"] = self.a.mem_note or "(none given; pass --mem-note)"
         return ev, per_case
 
+    def wake_acceptance(self, model, variant):
+        """Report-only: majority wake answer and mean noul for the set's wake-acceptance cases."""
+        out = {}
+        ids = {c["id"] for c in self.cases}
+        for cid in self.set["wake_acceptance"]:
+            if cid not in ids:
+                continue
+            recs = [r for r in self.results.get(model, []) if r["variant"] == variant and r["case"] == cid
+                    and r.get("top") and _num(r.get("wake_noul"))]
+            vals = [r["wake_noul"] for r in recs]
+            yes = sum(1 for v in vals if v > 0.5)
+            maj = None if not vals else ("yes" if yes * 2 > len(vals) else "no" if yes * 2 < len(vals) else "tie")
+            exp = next(c["expect"]["wake"] for c in self.cases if c["id"] == cid)
+            out[cid] = {"majority": maj, "yes_votes": yes, "n": len(vals),
+                        "mean_noul": round(sum(vals) / len(vals), 4) if vals else None,
+                        "expected": "yes" if exp else "no"}
+        return out
+
     @staticmethod
     def _better(evs: dict) -> str:
         """better = C2 PASS first, then higher route+wake correct count; tie -> earlier (orig)."""
@@ -879,6 +987,9 @@ class Runner:
                   "line": a.line, "base_url": getattr(self, "base", None), "models": getattr(self, "models", []),
                   "variants": getattr(self, "variants", []), "route_instructions": ROUTE_INSTRUCTIONS,
                   "route_criteria": ROUTE_CRITERIA, "case_ids": [c["id"] for c in getattr(self, "cases", [])],
+                  "set": a.set, "question_set_sha256": question_set_sha256(a.set),
+                  "question_set_sha256_all": {k: question_set_sha256(k) for k in SETS},
+                  "thresholds": {k: SETS[a.set][k] for k in ("c1", "c2", "c3")},
                   "settings": {"repeats": a.repeats, "stable_unit": a.stable_unit, "timeout_s": a.timeout,
                                "prob_tol": PROB_TOL, "skip_preflight": a.skip_preflight, "ping": a.ping},
                   "auth": ("placeholder key 'ollama'" if self.secret.public else "key loaded (redacted)")
@@ -910,7 +1021,7 @@ class Runner:
                             ("no key string in stdout or report" if k else "no secret key in use (placeholder/none)"),
                   "scanned_stdout_lines": len(self.transcript)}
             report["C6_security"] = c6
-            states, parts = [], []
+            states, parts, passing, model_lines = [], [], [], []
             for m in self.models:
                 for v in self.variants:
                     ev = evals[m][v]
@@ -931,6 +1042,16 @@ class Runner:
                     self.p("   %-11s %-7s tokens in=%d out=%d over %d responses; credits not looked up%s" % (
                         "C5_cost", INFO, c5["input_tokens"], c5["output_tokens"], c5["responses"],
                         ("; mem: " + c5["mem_note"]) if "mem_note" in c5 else ""))
+                if self.set["wake_acceptance"]:
+                    self.p("   WAKE-ACCEPTANCE (report only) %s" % m)
+                    wa_all = {}
+                    for v in self.variants:
+                        wa = self.wake_acceptance(m, v)
+                        wa_all[v] = wa
+                        for cid, x in wa.items():
+                            self.p("     variant %-4s %-25s majority=%s (%d/%d yes) mean_noul=%s expected=%s" % (
+                                v, cid, x["majority"], x["yes_votes"], x["n"], _fmt(x["mean_noul"]), x["expected"]))
+                    report["per_model"][m]["wake_acceptance"] = wa_all
                 used = self._better(evals[m])
                 ev = evals[m][used]
                 gate = {"C1": ev["C1_connect"]["state"], "C2": ev["C2_correct"]["state"],
@@ -946,15 +1067,25 @@ class Runner:
                 self.p("   VERDICT %s / %s: %s [variant %s used; C1=%s C2=%s C3=%s C6=%s]" % (
                     a.line, m, "CAN BE ADDED" if verdict == PASS else verdict + " (not addable)", used,
                     gate["C1"], gate["C2"], gate["C3"], gate["C6"]))
+                failed = [kk for kk, vv in gate.items() if vv != PASS]
+                model_lines.append("MODEL VERDICT %s: %s (variant=%s; failed=%s)" % (
+                    m, verdict, used, ",".join(failed) if failed else "none"))
                 if verdict != PASS:
                     parts.append("%s[%s]: %s" % (m, used, " ".join("%s=%s" % kv for kv in gate.items() if kv[1] != PASS)))
                 else:
-                    parts.append("%s[%s]: PASS" % (m, used))
-            overall = FAIL if FAIL in states else BLOCKED if BLOCKED in states else PASS
+                    passing.append(m)
+            # any model PASS -> PASS (exit 0); else any FAIL -> FAIL; else BLOCKED
+            overall = PASS if PASS in states else FAIL if FAIL in states else BLOCKED
             reasons = Counter(r["code"] for m in self.models for r in self.results[m] if r["state"] == BLOCKED)
             if reasons:
                 parts.append("blocked: " + ", ".join("%s x%d" % kv for kv in sorted(reasons.items())))
-            result = "RESULT: ALL PASS" if overall == PASS else "RESULT: %s (line=%s; %s)" % (overall, a.line, "; ".join(parts))
+            report["models_passing"] = passing
+            for ln in model_lines:
+                self.p(ln)
+            if overall == PASS:
+                result = "RESULT: PASS (models passing: %s)" % ", ".join(passing)
+            else:
+                result = "RESULT: %s (line=%s; %s)" % (overall, a.line, "; ".join(parts))
         report["overall"] = overall
         report["result_line"] = result
         report["finished_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
@@ -1007,7 +1138,7 @@ def _fake_answers(case, mode, call_no, variant, model):
     exp = case["expect"]
     route = exp["route"]
     two = ("case1_write_check004", "case6_offline_1h")
-    if mode == "wrongroute" and case["id"] in two:
+    if mode in ("wrongroute", "nopullwrong") and case["id"] in two:
         route = "dog" if route != "dog" else "cat"              # 2/8 wrong in every variant -> C2 FAIL
     if mode == "wrongorig" and variant == "orig" and case["id"] in two:
         route = "dog"                                           # only orig wording wrong -> B used, PASS
@@ -1017,6 +1148,14 @@ def _fake_answers(case, mode, call_no, variant, model):
         route = "sheep"                                         # 1/8 wrong -> still PASS
     if mode == "flip" and case["id"] in ("case1_write_check004", "case2_impl_farewell") and call_no == 2:
         route = "sheep"                                         # 2 unstable pairs: 22/24 pairs, 6/8 cases
+    idx = next(i for sd in SETS.values() for i, c in enumerate(sd["cases"]) if c["id"] == case["id"])
+    other = "none" if route != "none" else "sheep"
+    mw = re.match(r"nwrong(\d+)$", mode)
+    if mw and idx < int(mw.group(1)):
+        route = other                                           # first K cases of the set wrong
+    mf = re.match(r"nflip(\d+)$", mode)
+    if mf and idx < int(mf.group(1)) and call_no == 2:
+        route = other                                           # first K cases unstable (1 of 3 repeats)
     urg = exp["urgency"]
     if mode == "urg1":
         urg = urg + 1 if urg < 2 else 1                         # off by one everywhere -> PASS
@@ -1100,13 +1239,13 @@ class _FakeHandler(BaseHTTPRequestHandler):
         if qerr:  # mirror the cloud's 400 for e.g. noul without instructions/criteria
             return self._send(400, {"detail": "; ".join(qerr)})
         model = req.get("model")
-        if mode == "nopull" and model != "nimble":
+        if mode in ("nopull", "nopullwrong") and model != "nimble":
             return self._send(404, {"error": "model \"%s\" not found, try pulling it first" % model})
         if req.get("state") == PING_STATE:
             resp = json.loads(json.dumps(BLOG_SAMPLE_RESPONSE))
             resp["model"] = model
             return self._send(200, resp)
-        case = next((c for c in CASES if case_state(c) == req.get("state")), None)
+        case = next((c for c in ALL_CASES if case_state(c) == req.get("state")), None)
         if case is None:
             return self._send(422, {"detail": [{"loc": ["body", "state"], "msg": "unknown case", "type": "x"}]})
         rinstr = qs["route"]["instructions"]
@@ -1204,35 +1343,38 @@ def self_test(out) -> int:
     # (name, argv, expected overall, inject_leak, extra report check)
     S = [
         ("ollama_ok_2_models_ping", O("ok") + two + ["--ping", "--mem-note", "16GB VRAM"], PASS, False,
-         lambda r: all(pm(r, m)["verdict"] == PASS for m in ("tev1:0.8b", "tev1")) and r["ping"]["tev1"]["state"] == PASS),
+         lambda r, t: all(pm(r, m)["verdict"] == PASS for m in ("tev1:0.8b", "tev1")) and r["ping"]["tev1"]["state"] == PASS
+         and "models passing: tev1:0.8b, tev1" in t and "WAKE-ACCEPTANCE" not in t),
         ("cloud_ok_keyfile", C("ok") + K, PASS, False,
-         lambda r: pm(r, "jev-latest")["usage_totals"]["input_tokens"] == 300 * 48),
+         lambda r, t: pm(r, "jev-latest")["usage_totals"]["input_tokens"] == 300 * 48
+         and ("set=1 question_set_sha256=" + question_set_sha256("1")) in t and r["thresholds"]["c1"] == [7, 8]),
         ("cloud_ok_env_key", C("ok"), PASS, False, None),
         ("cloud_retry_after_429", C("429once") + K, PASS, False, None),
         ("route_7_of_8_still_pass", O("oneroute"), PASS, False,
-         lambda r: crit(r, "nimble", "orig", "C2_correct")["route_correct"] == 7),
+         lambda r, t: crit(r, "nimble", "orig", "C2_correct")["route_correct"] == 7),
         ("urgency_off_by_1_pass", O("urg1"), PASS, False, None),
         ("score_decoy_argmax_used", O("scoredecoy"), PASS, False, None),
         ("C3_pair_default_22of24_pass", O("flip"), PASS, False,
-         lambda r: crit(r, "nimble", "orig", "C3_stable")["pairs_stable"] == 22
+         lambda r, t: crit(r, "nimble", "orig", "C3_stable")["pairs_stable"] == 22
          and crit(r, "nimble", "orig", "C3_stable")["cases_stable"] == 6 and r["settings"]["stable_unit"] == "pair"),
         ("better_variant_B_used", O("wrongorig"), PASS, False,
-         lambda r: pm(r, "nimble")["variant_used"] == "B"
+         lambda r, t: pm(r, "nimble")["variant_used"] == "B"
          and crit(r, "nimble", "orig", "C2_correct")["state"] == FAIL),
         ("variant_orig_only_fail", O("wrongorig") + ["--variant", "orig"], FAIL, False, None),
         ("wrong_route_C2_fail", C("wrongroute") + K, FAIL, False,
-         lambda r: crit(r, "jev-latest", "B", "C2_correct")["route_correct"] == 6),
-        ("models_judged_separately", O("badmodel") + two, FAIL, False,
-         lambda r: pm(r, "tev1")["verdict"] == PASS and pm(r, "tev1:0.8b")["verdict"] == FAIL),
+         lambda r, t: crit(r, "jev-latest", "B", "C2_correct")["route_correct"] == 6),
+        ("models_judged_separately", O("badmodel") + two, PASS, False,   # one PASS + one FAIL -> exit 0
+         lambda r, t: pm(r, "tev1")["verdict"] == PASS and pm(r, "tev1:0.8b")["verdict"] == FAIL
+         and "RESULT: PASS (models passing: tev1)" in t and "MODEL VERDICT tev1:0.8b: FAIL (variant=orig; failed=C2)" in t),
         ("urgency_off_by_2_C2_fail", O("urg2"), FAIL, False, None),
         ("C3_case_unit_6of8_fail", O("flip") + ["--stable-unit", "case"], FAIL, False,
-         lambda r: crit(r, "nimble", "orig", "C3_stable")["state"] == FAIL),
+         lambda r, t: crit(r, "nimble", "orig", "C3_stable")["state"] == FAIL),
         ("missing_answer_C1_fail", C("missing") + K, FAIL, False, None),
         ("bad_probabilities_C1_fail", O("badprob"), FAIL, False, None),
         ("noul_out_of_range_C1_fail", O("noulrange"), FAIL, False, None),
         ("server_500_C1_fail", C("500") + K, FAIL, False, None),
         ("C6_leak_detected", C("ok") + K, FAIL, True,
-         lambda r: r["C6_security"]["state"] == FAIL),
+         lambda r, t: r["C6_security"]["state"] == FAIL),
         ("config_error_refuses_to_send", O("ok"), FAIL, False, "config"),
         ("auth_403_blocked", C("403") + K, BLOCKED, False, None),
         ("auth_401_echoes_key_blocked", C("401") + K + ["--skip-preflight"], BLOCKED, False, None),
@@ -1244,7 +1386,38 @@ def self_test(out) -> int:
         ("ollama_old_version_blocked", O("old"), BLOCKED, False, None),
         ("not_pulled_preflight_blocked", O("nopull") + two, BLOCKED, False, None),
         ("not_pulled_404_blocked", O("nopull") + ["--skip-preflight", "--model", "nimble", "--model", "tev1:0.8b"],
-         BLOCKED, False, lambda r: pm(r, "nimble")["verdict"] == PASS and pm(r, "tev1:0.8b")["verdict"] == BLOCKED),
+         PASS, False, lambda r, t: pm(r, "nimble")["verdict"] == PASS and pm(r, "tev1:0.8b")["verdict"] == BLOCKED
+         and "MODEL VERDICT tev1:0.8b: BLOCKED (variant=orig; failed=C1,C2,C3)" in t),
+        ("all_models_blocked_exit2", O("nopull") + ["--skip-preflight", "--model", "tev1:0.8b"], BLOCKED, False, None),
+        ("one_fail_one_blocked_exit1", O("nopullwrong") + ["--skip-preflight", "--variant", "orig", "--model", "tev1:0.8b",
+                                                      "--model", "nimble", "--case", "case1_write_check004"],
+         FAIL, False, lambda r, t: pm(r, "nimble")["verdict"] == FAIL and pm(r, "tev1:0.8b")["verdict"] == BLOCKED),
+        # ---- set 2 ----
+        ("set2_shape_pass", O("ok") + ["--set", "2"], PASS, False,
+         lambda r, t: r["set"] == "2" and len(r["case_ids"]) == 20 and r["thresholds"] == {"c1": [18, 20], "c2": [18, 20], "c3": [54, 60]}
+         and crit(r, "nimble", "orig", "C1_connect")["requests"] == 60 and crit(r, "nimble", "B", "C3_stable")["pairs_total"] == 60
+         and crit(r, "nimble", "B", "C3_stable")["cases_total"] == 20 and crit(r, "nimble", "orig", "C2_correct")["route_correct"] == 20
+         and r["question_set_sha256"] == question_set_sha256("2") and ("set=2 question_set_sha256=" + question_set_sha256("2")) in t
+         and pm(r, "nimble")["usage_totals"]["input_tokens"] == 300 * 120),
+        ("set2_wake_acceptance_section", C("ok") + K + ["--set", "2"], PASS, False,
+         lambda r, t: "WAKE-ACCEPTANCE (report only) jev-latest" in t
+         and all(set(pm(r, "jev-latest")["wake_acceptance"][v]) == set(SETS["2"]["wake_acceptance"]) for v in VARIANTS)
+         and all(x["majority"] == "yes" and x["n"] == 3 and abs(x["mean_noul"] - 0.93) < 1e-9
+                 for v in VARIANTS for x in pm(r, "jev-latest")["wake_acceptance"][v].values())),
+        ("set2_route_18of20_pass", O("nwrong2") + ["--set", "2"], PASS, False,
+         lambda r, t: crit(r, "nimble", "orig", "C2_correct")["route_correct"] == 18
+         and crit(r, "nimble", "orig", "C2_correct")["state"] == PASS),
+        ("set2_route_17of20_fail", O("nwrong3") + ["--set", "2"], FAIL, False,
+         lambda r, t: crit(r, "nimble", "orig", "C2_correct")["route_correct"] == 17
+         and "MODEL VERDICT nimble: FAIL (variant=orig; failed=C2)" in t),
+        ("set2_C3_54of60_pass", O("nflip6") + ["--set", "2"], PASS, False,
+         lambda r, t: crit(r, "nimble", "orig", "C3_stable")["pairs_stable"] == 54
+         and crit(r, "nimble", "orig", "C3_stable")["cases_stable"] == 14),
+        ("set2_C3_53of60_fail", O("nflip7") + ["--set", "2"], FAIL, False,
+         lambda r, t: crit(r, "nimble", "orig", "C3_stable")["pairs_stable"] == 53
+         and crit(r, "nimble", "B", "C3_stable")["state"] == FAIL),
+        ("set2_unknown_set1_case_config_fail", O("ok") + ["--set", "2", "--case", "case1_write_check004"], FAIL, False,
+         "config_case"),
         ("repeats_1_C3_blocked", O("ok") + ["--repeats", "1"], BLOCKED, False, None),
     ]
     saved_env = os.environ.get(KEY_ENV)
@@ -1269,15 +1442,26 @@ def self_test(out) -> int:
             text = buf.getvalue()
             lines = [l for l in text.splitlines() if l.strip()]
             last = lines[-1] if lines else ""
-            prefix = "RESULT: ALL PASS" if want == PASS else "RESULT: %s (" % want
+            prefix = "RESULT: PASS (models passing: " if want == PASS else "RESULT: %s (" % want
             rtext = open(rpt, encoding="ascii").read() if os.path.exists(rpt) else ""
             in_stdout, in_report = fake_key in text, fake_key in rtext
             extra_ok = True
             try:
-                if extra == "config":
+                if extra in ("config", "config_case"):
                     extra_ok = srv_o.posts == 0 and "config error" in last
+                    if extra == "config_case":
+                        extra_ok = extra_ok and "unknown --case ids" in last and "missing instructions" not in last
                 elif extra is not None:
-                    extra_ok = bool(extra(json.loads(rtext)))
+                    extra_ok = bool(extra(json.loads(rtext), text))
+                rj = json.loads(rtext) if rtext else {}
+                if extra_ok and rj.get("per_model"):
+                    # one MODEL VERDICT line per model, matching the report, before RESULT
+                    for m, d in rj["per_model"].items():
+                        failed = [k for k, v in d["gate"].items() if v != PASS]
+                        want_line = "MODEL VERDICT %s: %s (variant=%s; failed=%s)" % (
+                            m, d["verdict"], d["variant_used"], ",".join(failed) if failed else "none")
+                        if want_line not in lines or lines.index(want_line) > len(lines) - 2:
+                            extra_ok = False
             except Exception as e:  # noqa
                 extra_ok = False
             try:
@@ -1305,7 +1489,7 @@ def self_test(out) -> int:
     if mismatches:
         w("RESULT: FAIL (self-test mismatches: %s)" % ", ".join(mismatches))
         return 1
-    w("RESULT: ALL PASS")
+    w("RESULT: PASS (self-test: %d/%d scenarios + 2 unit checks ok)" % (len(S), len(S)))
     return 0
 
 # ==========================================================================
@@ -1321,10 +1505,13 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--key-file", help="one-line key file (cloud). Else env %s. Ollama uses 'ollama' unless given." % KEY_ENV)
     ap.add_argument("--variant", choices=["orig", "B", "both"], default="both",
                     help="route question wording; both = run both, verdict uses the better (default both)")
+    ap.add_argument("--set", choices=sorted(SETS), default="1",
+                    help="question set: 1 = 8 cases (default), 2 = 20 cases; thresholds scale per set")
     ap.add_argument("--repeats", type=int, default=3, help="runs per case for C3 (default 3)")
     ap.add_argument("--stable-unit", choices=["pair", "case"], default="pair",
                     help="C3 unit: pair (case,question; default) or case (all 3 questions). Both are reported.")
-    ap.add_argument("--case", action="append", help="only these case ids (repeatable): " + ", ".join(c["id"] for c in CASES))
+    ap.add_argument("--case", action="append", help="only these case ids of the chosen --set (repeatable); "
+                                                    "ids are listed in the JSON report")
     ap.add_argument("--ping", action="store_true", help="also send the Ollama-blog billing ticket once per model (not scored)")
     ap.add_argument("--mem-note", help="local line: free-text memory note for C5 (e.g. 'ollama ps: 9.8 GB')")
     ap.add_argument("--out", default="jev_report.json", help="JSON report path (default jev_report.json)")
