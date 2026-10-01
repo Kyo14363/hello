@@ -2,7 +2,7 @@
 
 | Field | Content |
 |------|---------|
-| Status | spec 完成，待閘門與實作重驗（2026-10-01） |
+| Status | spec 完成，待閘門與實作重驗（2026-10-01；同日勘誤：R2／G3 明寫 `PYTHONPATH=src`） |
 | Repo | https://github.com/Kyo14363/hello （**不得**帶回 kyo-work） |
 | Upstream | 003 抽出 `greet()`、加 `tests/test_hello.py`（stdlib unittest）。2026-10-01 試驗時，Cursor 雲端 agent 先開了實作 PR #48（加 `farewell()`），被小貓判 BLOCKED，因為還沒有 spec 和閘門。本單把那次試驗補成標準流程：spec → 閘門 → 實作重驗 → 驗收。 |
 | Implementer | spec **Clau小羊**；閘門 **Gpt小豬**；實作 **Cursor 雲端 agent**（沿用 PR #48，必要時由小羊用同一個 agent 補改）；驗收與合併 **Gro小貓**。 |
@@ -31,7 +31,7 @@
 
 - 測試加在既有的 `tests/test_hello.py`，維持 stdlib `unittest`，不引 pytest、不加 pip 依賴。
 - 至少一筆測試呼叫 `farewell()` 並斷言回傳值含 `Goodbye, <name>!`。
-- 在 repo 根跑 `python -m unittest tests.test_hello` 必須能收、退出 0。
+- 在 repo 根跑 `PYTHONPATH=src python -m unittest tests.test_hello` 必須能收、退出 0（與 `check_003` 同一個跑法；測試沿用 `from hello import`，不必自己改 import 路徑）。
 
 ### R3 範圍
 
@@ -44,7 +44,7 @@ Gpt小豬 寫，實作方不得改。stdlib／離線／ASCII stdout，活檔只�
 
 - **G1** 形狀：`src/hello.py` 有 `greet()` 與 `farewell(name)`；`Hello, Gitmy!` 仍在；001～003 的交付物仍在。
 - **G2** 行為：import 後 `farewell("Gitmy")` 含 `Goodbye, Gitmy!`、`farewell("Kyo")` 含 `Goodbye, Kyo!`；`greet()` 仍含 `Hello, Gitmy!`；`python src/hello.py` stdout 仍含 `Hello, Gitmy!`。
-- **G3** 測試有在擋：`python -m unittest tests.test_hello` 退出 0；暫存副本上把 `farewell()` 改壞（例如回傳空字串），同一條測試必須紅。空測試或沒呼叫 `farewell()` 的測試不算。
+- **G3** 測試有在擋：`PYTHONPATH=src python -m unittest tests.test_hello` 退出 0（閘門以子行程環境設定 `PYTHONPATH=src`，與 `check_003` 一致）；暫存副本上把 `farewell()` 改壞（例如回傳空字串），同一條測試必須紅。空測試或沒呼叫 `farewell()` 的測試不算。
 - **G4** 回歸：洗掉不該漏給子行程的環境後，回跑 `python tools/check_001.py`、`check_002.py`、`check_003.py`，三支都必須仍綠。
 - 結尾印 `RESULT: ALL PASS` 或 `RESULT: FAIL`，失敗時退出碼非 0。
 
