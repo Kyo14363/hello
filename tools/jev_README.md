@@ -10,11 +10,12 @@
 Both lines use `POST /v1/systemone`. Preflight calls `GET /v1/models` on cloud, and `GET /api/version` plus `/api/tags` on Ollama.
 
 ## What it sends
-There are two fixed sets of team-chat cases, chosen with `--set`:
+There are three fixed sets of cases, chosen with `--set`:
 - `--set 1` (default) has 8 cases.
 - `--set 2` has 20 cases, covering gates, implementation, acceptance, coordination, owner escalation and no-handoff messages.
+- `--set 3` has 20 bot-to-bot messages and asks **only** the wake question (see [Set 3 (wake-only)](#set-3-wake-only) below).
 
-Both sets use the same `ROUTE_CRITERIA`, the same `orig`/`B` wordings and the same three questions. Each case is sent as `state={"message": ...}` with the same three questions:
+Sets 1 and 2 use the same `ROUTE_CRITERIA`, the same `orig`/`B` wordings and the same three questions. Each case is sent as `state={"message": ...}` with the same three questions:
 - `route` (choice): `sheep` / `pig` / `dog` / `cat` / `owner` / `none`. The descriptions live in **`ROUTE_CRITERIA`**, one constant near the top of the file.
 - `wake` (noul): > 0.5 means wake.
 - `urgency` (score): `["低","中","高"]`. The top class is the **argmax of `probabilities`**. `score` is only recorded.
@@ -28,7 +29,10 @@ The header prints `set=<n> question_set_sha256=<hex>`, and the report stores it 
 | set | question_set_sha256 |
 |---|---|
 | 1 | `659c6638c19424086c41a0b676b3f201e91c062893d49b42e7642fc414cc1b26` |
-| 2 | `3e499742a9148e5e8412ee9186b5dc5dd9a3d72970ad8ee42bd4413e6c31ce81` | Every `--model` is judged on its own.
+| 2 | `3e499742a9148e5e8412ee9186b5dc5dd9a3d72970ad8ee42bd4413e6c31ce81` |
+| 3 | `72b00bd63b2a7ed01c6e7559fb5481290d1a4a812dc5ba51bb8dcda61821f782` |
+
+Every `--model` is judged on its own.
 
 Before anything is sent, the question set is checked: every question must have non-empty `instructions`, and a noul must also have `criteria.true` and `criteria.false`. The cloud API returns 400 otherwise. If the check fails, the run ends with `RESULT: FAIL (config error, nothing sent ...)`.
 
@@ -54,6 +58,29 @@ Thresholds are ratios of the set size. The table shows set 1; set 2 thresholds a
 
 Set 2 adds a report-only section, **`WAKE-ACCEPTANCE (report only)`**, which does not affect any verdict. For cases 3, 4 and 5 (acceptance-bound messages: gate PR ready, implementation PR waiting, branch updated) it lists, per variant, the majority wake answer, the yes votes and the mean noul.
 
+## Set 3 (wake-only)
+Purpose: check one thing only, whether a bot-to-bot message should **wake** the recipient when it is sent. Each case is the full message line (sender, channel and the quoted message, e.g. `小豬在 work work 標小貓：「...」`), sent as `state={"message": ...}`. Ids are `s3c01_...` to `s3c20_...`; 8 cases expect wake (1, 3, 6, 9, 12, 15, 16, 18) and 12 expect no wake.
+
+- **One question, one wording.** Only `wake` (noul) is asked: no `route`, no `urgency`, no `orig`/`B`. The report and verdict record the variant as `single`. `--variant orig|B` is ignored for set 3 and the run prints a note. `--stable-unit` does not apply either.
+- The question (`WAKE3_QUESTIONS`, the same shape as the set 1/2 `wake` question):
+  - `instructions`: 判斷這則 Bot 間訊息發出時要不要叫醒收件方。收件方必須接著動手（有時限，或有人在等）就是「喚醒」；只是結果、狀態或 FYI 就是「不喚醒」。不要只看口氣是否緊急。
+  - `criteria`: `true` = 喚醒, `false` = 不喚醒. The pre-send check (and the cloud API) requires `criteria.true/false` on a noul.
+- Scoring: in each run, wake = `noul > 0.5` (the same rule as sets 1 and 2; exactly 0.5 counts as no wake). The case answer is the majority of the `--repeats` runs (default 3): more than half of the runs must agree. If they don't (possible only when some runs failed), the case has no answer and counts as wrong.
+
+| set 3 threshold (ratios; scaled to the cases actually run) | rule |
+|---|---|
+| C1 connect (per **case**) | a case counts only if **all** its runs returned HTTP 200 with a schema-valid body; >= 18/20 cases |
+| C2 correct | majority wake answer correct for >= 19/20 cases |
+| C3 stable | of the 60 cells (20 cases x 3 runs), >= 54/60 equal that case's majority answer |
+| C4 latency, C5 cost | report only, as above |
+| C6 security | as above |
+
+A model passes set 3 when C1, C2, C3 and C6 are all PASS. MODEL VERDICT, RESULT and the exit codes are the same as for sets 1 and 2.
+
+Set 3 adds a report-only section, **`TRAPS (report only)`**, which does not affect any verdict. Cases 10 and 16 are deliberate traps: case 10 sounds urgent (`【重要】`) but needs no wake, and case 16 sounds casual (`順手提一下`) but needs a wake. For each one the section lists the answer of every run, the majority, the mean noul and the expected answer. The set 2 `WAKE-ACCEPTANCE` section is unchanged.
+
+The set 3 `question_set_sha256` uses the same canonical JSON as sets 1 and 2: case ids, state as sent, expected answers, and the one `single` question (instructions and criteria).
+
 **A model can be added when C1, C2, C3 and C6 are all PASS.**
 
 BLOCKED covers these cases:
@@ -67,7 +94,7 @@ BLOCKED covers these cases:
 
 Just before the RESULT line, the script prints one line per model:
 ```
-MODEL VERDICT <model>: PASS|FAIL|BLOCKED (variant=<orig|B>; failed=<C1,C2,..|none>)
+MODEL VERDICT <model>: PASS|FAIL|BLOCKED (variant=<orig|B|single>; failed=<C1,C2,..|none>)
 ```
 The last line of output is one of:
 - `RESULT: PASS (models passing: <list>)` (exit 0) if **any** model passes, even when other models fail or are blocked.
@@ -101,8 +128,8 @@ $LASTEXITCODE
 You can set `$env:TYPESAFE_API_KEY` instead of `--key-file`. Keep the key out of command lines and history. The ollama line never sends `TYPESAFE_API_KEY`.
 
 ### Useful flags
-- `--set 1|2` (default 1). For example, add `--set 2` to either line's command to run the 20-case set.
-- `--variant orig|B|both`, `--repeats N`, `--stable-unit pair|case`
+- `--set 1|2|3` (default 1). For example, add `--set 2` to either line's command to run the 20-case set, or `--set 3` for the 20-case wake-only set (one wording, so set 3 sends 20 x 3 = 60 requests per model).
+- `--variant orig|B|both`, `--repeats N`, `--stable-unit pair|case` (`--variant` and `--stable-unit` do not apply to `--set 3`)
 - `--case <id>` (repeatable; the ids belong to the chosen `--set` and are listed in the report's `case_ids`)
 - `--ping`
 - `--skip-preflight`
