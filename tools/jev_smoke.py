@@ -18,7 +18,8 @@ Python 3.10+ standard library only. Console output is ASCII only. The key is
 never printed or written; error text is masked; C6 scans for leaks.
 
 Criteria (per model; verdict PASS / FAIL / BLOCKED):
-  (thresholds shown for set 1; set 2 uses 18/20, 18/20, 54/60)
+  (thresholds shown for set 1; set 2 uses 18/20, 18/20, 54/60; set 3 is
+   wake-only with its own rules, see "Set 3" below)
   C1 connect : >= 7/8 of requests HTTP 200; every 200 body schema-valid, all
                probabilities in [0,1], choice (and score) probabilities sum
                to 1 +- 0.02.
@@ -48,12 +49,24 @@ non-empty instructions; noul needs criteria.true/false; the cloud API answers
 400 otherwise). A bad set is a config error: RESULT: FAIL, nothing is sent.
 Question sets (--set): 1 = 8 cases (default; thresholds 7/8, 7/8, 90% of
 pairs), 2 = 20 cases (thresholds 18/20, 18/20, 54/60 pairs; plus a report-only
-WAKE-ACCEPTANCE section for cases 3-5). Thresholds are ratios of the set size.
+WAKE-ACCEPTANCE section for cases 3-5), 3 = 20 bot-to-bot cases, wake-only
+(see below). Thresholds are ratios of the set size (cases actually run).
+Set 3 (wake-only): ONE noul question `wake` per case, one wording (variant is
+recorded as `single`; --variant is ignored with a printed note). Per run,
+wake = noul > 0.5 (same convention as sets 1/2); case answer = majority of
+the --repeats runs (more than half of the runs must agree, else no answer).
+  C1 : per CASE - a case counts only if ALL its runs were HTTP 200 with a
+       schema-valid body; need >= 18/20 cases.
+  C2 : wake majority correct >= 19/20 cases (no route, no urgency).
+  C3 : of cases x repeats cells (60), cells equal to the case's majority
+       >= 54/60. (--stable-unit does not apply to set 3.)
+  C4/C5 report only, C6 as above. Plus a report-only TRAPS section for cases
+  10 and 16 (urgent tone/no wake, casual tone/wake); it never affects verdicts.
 The header prints question_set_sha256 = sha256 of the canonical JSON
 (sort_keys, ensure_ascii=False, separators=(",",":")) of the set's cases,
 expected answers and per-variant questions (instructions + criteria).
 Before RESULT, one line per model:
-  MODEL VERDICT <model>: PASS|FAIL|BLOCKED (variant=<orig|B>; failed=<C..|none>)
+  MODEL VERDICT <model>: PASS|FAIL|BLOCKED (variant=<orig|B|single>; failed=<C..|none>)
 Last stdout line: RESULT: PASS (models passing: <list>) (exit 0) if ANY model
 passes | else RESULT: FAIL (...) (exit 1) if any model FAILs | else
 RESULT: BLOCKED (...) (exit 2).
@@ -97,7 +110,7 @@ ROUTE_CRITERIA = {
     "none": "不用交：結案、致謝、純分享",
 }
 
-TOOL_VERSION = "0.3.0"
+TOOL_VERSION = "0.4.0"
 SYSTEM_ONE_PATH = "/v1/systemone"
 MODELS_PATH = "/v1/models"
 CLOUD_DEFAULT_BASE_URL = "https://api.typesafe.ai"   # typesafe-sdk 0.7.2 DEFAULT_BASE_URL
@@ -216,8 +229,65 @@ CASES_SET2 = [
      "expect": {"route": "none", "wake": False, "urgency": 0}},
 ]
 
+# Set 3: 20 bot-to-bot messages, ONE wake-only noul question, one wording.
+# Planner spec (locked). `text` is the full case line (sender, channel and the
+# quoted message) and is sent as state={"message": text}. 喚醒 = True.
+WAKE3_VARIANT = "single"
+WAKE3_INSTRUCTIONS = ("判斷這則 Bot 間訊息發出時要不要叫醒收件方。收件方必須接著動手（有時限，或有人在等）"
+                      "就是「喚醒」；只是結果、狀態或 FYI 就是「不喚醒」。不要只看口氣是否緊急。")
+WAKE3_QUESTIONS = {
+    "wake": {
+        "type": "noul",
+        "instructions": WAKE3_INSTRUCTIONS,
+        "criteria": {"true": "喚醒", "false": "不喚醒"},
+    },
+}
+
+CASES_SET3 = [
+    {"id": "s3c01_pr60_merge", "text": "小豬在 work work 標小貓：「check_005 閘門 PR #60 開好了，請驗收合併。」",
+     "expect": {"wake": True}},
+    {"id": "s3c02_hello004_closed", "text": "小貓發在 work work：「hello 004 已結案，#48 合併 SHA 09971e6，這條不用再動。」",
+     "expect": {"wake": False}},
+    {"id": "s3c03_takeover_tev1", "text": "小狗 1:1 給小貓：「畚箕斷線了，我 10 分鐘內接不回來，請你 23:00 前接手跑 tev1。」",
+     "expect": {"wake": True}},
+    {"id": "s3c04_thanks_selftest", "text": "小羊 1:1 給小豬：「謝謝，你昨天的 self-test 我看過了，沒問題。」",
+     "expect": {"wake": False}},
+    {"id": "s3c05_ci_green", "text": "小貓發在 work work：「今晚 CI 全綠，沒有待辦。」",
+     "expect": {"wake": False}},
+    {"id": "s3c06_nav_csv", "text": "M_Bot 1:1 給台灣市場研究員：「奈 神 21:00 前要看 0050 本週淨值表，請你 20:30 前交 CSV 摘要。」",
+     "expect": {"wake": True}},
+    {"id": "s3c07_datamap_note", "text": "台灣市場研究員發在 Finance 群：「備註：DATA-MAP.md 第 3 節欄位說明我更新了，不影響任何人今天的交件。」",
+     "expect": {"wake": False}},
+    {"id": "s3c08_source_swapped", "text": "財經號角 1:1 給 M_Bot：「我的來源清單有一個帳號被停權，已經自己換掉了，只是告知。」",
+     "expect": {"wake": False}},
+    {"id": "s3c09_delivery_missing", "text": "M_Bot 1:1 給財經號角：「今天的交件還沒看到，奈 神 20:30 的集中回報在等你這份。」",
+     "expect": {"wake": True}},
+    {"id": "s3c10_trap_urgent_fyi", "text": "台股風向發在 Finance 群：「【重要】今日台股短版已交，週末不出，大家不用回。」",
+     "expect": {"wake": False}},
+    {"id": "s3c11_slow_sample", "text": "AB變現偵察 1:1 給 New Bot：「慢線樣本一則：某 YT 創作者教 Notion 模板上架流程（附連結）。」",
+     "expect": {"wake": False}},
+    {"id": "s3c12_translation_check", "text": "New Bot 1:1 給 CD變現偵察：「奈 神明早 9 點要決定接不接這個翻譯案，請你今晚把可執行性驗證交給我。」",
+     "expect": {"wake": True}},
+    {"id": "s3c13_fee_found", "text": "CD變現偵察 1:1 給 New Bot：「上週那個接案平台的手續費查到了，是 10%，已經寫進我的交件備註。」",
+     "expect": {"wake": False}},
+    {"id": "s3c14_weekly_zero", "text": "New Bot 1:1 給 AB變現偵察：「本週累計進度：目前 US$0，下週一再報。」",
+     "expect": {"wake": False}},
+    {"id": "s3c15_gumroad_login", "text": "AB變現偵察 1:1 給 New Bot：「這個模板上架要奈 神登入 Gumroad 簽約，我卡住了，等你決定要不要往上報。」",
+     "expect": {"wake": True}},
+    {"id": "s3c16_trap_casual_wake", "text": "圖書館管理員 1:1 給進項編目：「順手提一下，奈 神在等今天 Clippings/_unsorted 的排隊清單，請 22:00 前給我。」",
+     "expect": {"wake": True}},
+    {"id": "s3c17_x_list", "text": "進項編目 1:1 給圖書館管理員：「今天 X/ 新增 12 則，標籤已分好，清單附上。」",
+     "expect": {"wake": False}},
+    {"id": "s3c18_wiki_links", "text": "Wiki 編目 1:1 給圖書館管理員：「Home 頁有兩個斷連結，我只能讀不能改，請你今天轉給奈 神決定怎麼修。」",
+     "expect": {"wake": True}},
+    {"id": "s3c19_brief_ok", "text": "產出編目 1:1 給圖書館管理員：「本週 daily brief 5 份都在，沒有缺。」",
+     "expect": {"wake": False}},
+    {"id": "s3c20_clipping_done", "text": "X研究員 1:1 給進項編目：「今天的論文 clipping 已存進 Clippings，YAML 都填好了，你不用回。」",
+     "expect": {"wake": False}},
+]
+
 CASES = CASES_SET1          # backwards-compatible alias (set 1)
-ALL_CASES = CASES_SET1 + CASES_SET2
+ALL_CASES = CASES_SET1 + CASES_SET2 + CASES_SET3
 
 # Thresholds per set, as (numerator, denominator) ratios of the set size.
 #   c1: share of requests that must be HTTP 200 (schema rules on top)
@@ -229,6 +299,12 @@ SETS = {
           "wake_acceptance": []},
     "2": {"cases": CASES_SET2, "c1": (18, 20), "c2": (18, 20), "c3": (54, 60), "c3_label": "54/60",
           "wake_acceptance": ["s2c03_gate_pr_merge", "s2c04_impl_pr_wait", "s2c05_branch_updated"]},
+    # Set 3 (wake-only): c1 = share of CASES whose runs were all HTTP 200 + schema ok,
+    # c2 = share of cases with the correct majority wake, c3 = share of (case, run)
+    # cells equal to that case's majority answer.
+    "3": {"cases": CASES_SET3, "c1": (18, 20), "c2": (19, 20), "c3": (54, 60), "c3_label": "54/60",
+          "wake_acceptance": [], "wake_only": True,
+          "traps": ["s3c10_trap_urgent_fyi", "s3c16_trap_casual_wake"]},
 }
 
 
@@ -240,12 +316,23 @@ def case_state(case: dict):
     return {"message": case["text"]}
 
 
+def set_variants(set_id: str) -> list:
+    """Question wordings of a set: orig/B for sets 1-2, the single wording for set 3."""
+    return [WAKE3_VARIANT] if SETS[set_id].get("wake_only") else list(VARIANTS)
+
+
+def set_questions(set_id: str, variant: str) -> dict:
+    """Questions sent for a set / wording variant."""
+    return WAKE3_QUESTIONS if SETS[set_id].get("wake_only") else questions_for(variant)
+
+
 def question_set_canonical(set_id: str) -> str:
     """Canonical JSON of a set: cases (id, state as sent, expected) and, per route
-    wording variant, the full questions (instructions + criteria)."""
+    wording variant, the full questions (instructions + criteria). Set 3 has one
+    variant ("single") with the one wake question."""
     doc = {"set": set_id,
            "cases": [{"id": c["id"], "state": case_state(c), "expect": c["expect"]} for c in SETS[set_id]["cases"]],
-           "questions": {v: questions_for(v) for v in VARIANTS}}
+           "questions": {v: set_questions(set_id, v) for v in set_variants(set_id)}}
     return json.dumps(doc, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
@@ -708,14 +795,23 @@ class Runner:
         self.set = SETS[a.set]
         self.cases = [c for c in self.set["cases"] if not a.case or c["id"] in a.case]
         self.qs_sha = question_set_sha256(a.set)
-        self.variants = VARIANTS if a.variant == "both" else [a.variant]
+        self.wake_only = bool(self.set.get("wake_only"))
+        if self.wake_only:
+            self.variants = set_variants(a.set)    # one wording; --variant does not apply
+        else:
+            self.variants = VARIANTS if a.variant == "both" else [a.variant]
         self.p("jev_smoke %s line=%s base_url=%s models=%s cases=%d repeats=%d variants=%s stable_unit=%s" % (
             TOOL_VERSION, a.line, self.base, ",".join(self.models), len(self.cases), a.repeats,
             ",".join(self.variants), a.stable_unit))
         self.p("set=%s question_set_sha256=%s" % (a.set, self.qs_sha))
+        if self.wake_only and a.variant != "both":
+            note = "--variant %s ignored for set %s (one wake question, one wording; variant=%s)" % (
+                a.variant, a.set, WAKE3_VARIANT)
+            self.p("note: " + note)
+            self.warnings.append(note)
 
         # pre-send self-check of the question set (cloud answers 400 otherwise)
-        cfg = ["questions[%s].%s" % (v, e) for v in self.variants for e in validate_question_set(questions_for(v))]
+        cfg = ["questions[%s].%s" % (v, e) for v in self.variants for e in validate_question_set(set_questions(a.set, v))]
         if a.ping:
             cfg += ["PING_QUESTIONS." + e for e in validate_question_set(PING_QUESTIONS)]
         if a.case:
@@ -736,7 +832,7 @@ class Runner:
                 self.p("DRY-RUN %s POST %s%s x%d" % (c["id"], self.base, SYSTEM_ONE_PATH, a.repeats))
             for v in self.variants:
                 self.p(json.dumps({"model": self.models[0], "state": case_state(self.cases[0]),
-                                   "questions": questions_for(v)}, ensure_ascii=True))
+                                   "questions": set_questions(a.set, v)}, ensure_ascii=True))
             return self.finish(dry=True)
 
         parts = urllib.parse.urlsplit(self.base)
@@ -767,7 +863,7 @@ class Runner:
                 self.do_ping(model)
             n_call = 0
             for variant in self.variants:
-              qs = questions_for(variant)
+              qs = set_questions(a.set, variant)
               for rep in range(1, a.repeats + 1):
                 for case in self.cases:
                     rec = {"case": case["id"], "repeat": rep, "variant": variant}
@@ -800,6 +896,18 @@ class Runner:
                         rec["top"] = None
                         self.p("[FAIL] %-10s %-4s r%d %-25s %6.0fms schema: %s" % (
                             model, variant, rep, case["id"], res["latency_ms"], "; ".join(errs)))
+                        continue
+                    if self.wake_only:
+                        wn = d["answers"]["wake"].get("noul")
+                        top = {"wake": (wn > 0.5) if _num(wn) else None}   # same convention as top_answers
+                        rec["top"] = top
+                        rec["wake_noul"] = wn
+                        want_w = case["expect"]["wake"]
+                        self.p("[ OK ] %-10s %-6s r%d %-25s %6.0fms wake=%s(%s)%s" % (
+                            model, variant, rep, case["id"], res["latency_ms"], _fmt(wn), "yes" if top["wake"] else "no",
+                            "" if top["wake"] == want_w else "(want %s)" % ("yes" if want_w else "no")))
+                        for n in notes:
+                            self.p("       note: %s" % n)
                         continue
                     top = top_answers(d["answers"])
                     rec["top"] = top
@@ -845,6 +953,8 @@ class Runner:
 
     # -- evaluation ----------------------------------------------------------------
     def evaluate(self, model, variant):
+        if self.wake_only:
+            return self.evaluate_wake_only(model, variant)
         recs = [r for r in self.results.get(model, []) if r["variant"] == variant]
         total = len(recs)
         n_block = sum(1 for r in recs if r["state"] == BLOCKED)
@@ -928,6 +1038,12 @@ class Runner:
                            "pairs_stable": pairs_stable, "pairs_total": n_pairs, "pair_ratio": round(pr, 4),
                            "cases_stable": cases_stable, "cases_total": nc, "case_ratio": round(cr, 4),
                            "unstable": unstable}
+        ev["C4_latency"], ev["C5_cost"] = self._c4_c5(recs)
+        return ev, per_case
+
+    def _c4_c5(self, recs):
+        """C4 latency and C5 cost, both report only."""
+        ev = {}
         # C4 latency (report only)
         lat = [(r["call_index"], r["latency_ms"]) for r in recs
                if r.get("http_status") == 200 and r.get("latency_ms") is not None]
@@ -948,7 +1064,93 @@ class Runner:
                          "credits": "not looked up"}
         if self.a.line == "ollama":
             ev["C5_cost"]["mem_note"] = self.a.mem_note or "(none given; pass --mem-note)"
+        return ev["C4_latency"], ev["C5_cost"]
+
+    def evaluate_wake_only(self, model, variant):
+        """Set 3: one noul `wake` question. Per run wake = noul > 0.5; case answer =
+        majority of the repeats (more than half of R must agree, else None)."""
+        recs = [r for r in self.results.get(model, []) if r["variant"] == variant]
+        R = self.a.repeats
+        c1t, c2t, c3t = self.set["c1"], self.set["c2"], self.set["c3"]
+        nc = len(self.cases)
+        total = len(recs)
+        n_200 = sum(1 for r in recs if r.get("http_status") == 200)
+        n_schema_bad = sum(1 for r in recs if r.get("schema_errors"))
+        blk_txt = ", ".join("%s x%d" % kv for kv in sorted(Counter(r["code"] for r in recs if r["state"] == BLOCKED).items()))
+        per_case = {}
+        for c in self.cases:
+            crecs = sorted((r for r in recs if r["case"] == c["id"]), key=lambda r: r["repeat"])
+            good = lambda r: r.get("http_status") == 200 and not r.get("schema_errors") and bool(r.get("top"))
+            answers = [r["top"]["wake"] if good(r) else None for r in crecs]
+            nouls = [r.get("wake_noul") if good(r) else None for r in crecs]
+            yes = sum(1 for x in answers if x is True)
+            no = sum(1 for x in answers if x is False)
+            maj = True if yes * 2 > R else False if no * 2 > R else None
+            agree = sum(1 for x in answers if maj is not None and x is maj)
+            per_case[c["id"]] = {"expect": c["expect"], "majority": maj, "answers": answers, "noul": nouls,
+                                 "yes_votes": yes, "c1_ok": len(crecs) == R and all(good(r) for r in crecs),
+                                 "cells_agree": agree, "blocked": any(r["state"] == BLOCKED for r in crecs)}
+        blocked_cases = sum(1 for v in per_case.values() if v["blocked"])
+        any_blocked = blocked_cases > 0
+        ev = {}
+        # C1 connect, counted per CASE
+        cok = sum(1 for v in per_case.values() if v["c1_ok"])
+        d1 = "cases with all %d runs HTTP 200 + schema ok: %d/%d (need >= %d/%d); requests %d/%d HTTP 200, %d schema error(s)" % (
+            R, cok, nc, c1t[0], c1t[1], n_200, total, n_schema_bad)
+        if nc and blocked_cases > nc * (1 - _ratio(c1t)):
+            c1 = (BLOCKED, "%d/%d cases blocked (%s)" % (blocked_cases, nc, blk_txt))
+        elif nc and cok >= _ratio(c1t) * nc - 1e-9:
+            c1 = (PASS, d1)
+        else:
+            c1 = (FAIL, d1)
+        ev["C1_connect"] = {"state": c1[0], "detail": c1[1], "unit": "case", "cases_ok": cok, "cases": nc,
+                            "requests": total, "http_200": n_200, "blocked_cases": blocked_cases,
+                            "schema_errors": n_schema_bad}
+        # C2 correct: wake majority only
+        wc = sum(1 for c in self.cases if per_case[c["id"]]["majority"] == c["expect"]["wake"])
+        wrong_wake = [c["id"].split("_")[0] for c in self.cases if per_case[c["id"]]["majority"] != c["expect"]["wake"]]
+        d2 = "wake (majority of %d runs) %d/%d (need >= %d/%d)" % (R, wc, nc, c2t[0], c2t[1])
+        if nc and wc >= _ratio(c2t) * nc - 1e-9:
+            c2 = (PASS, d2)
+        else:
+            c2 = (BLOCKED, d2 + "; some cases blocked") if any_blocked else (FAIL, d2)
+        ev["C2_correct"] = {"state": c2[0], "detail": c2[1], "wake_correct": wc, "cases": nc, "wrong_wake": wrong_wake}
+        # C3 stable: (case, run) cells equal to the case's majority
+        cells = sum(v["cells_agree"] for v in per_case.values())
+        n_cells = nc * R
+        cr = cells / n_cells if n_cells else 0.0
+        unstable = ["%s=%s" % (cid.split("_")[0], ["-" if x is None else "yes" if x else "no" for x in v["answers"]])
+                    for cid, v in per_case.items() if v["cells_agree"] != R]
+        d3 = "unit=cell: %d/%d cells equal the case majority (%.1f%%); need >= %s" % (
+            cells, n_cells, cr * 100, self.set["c3_label"])
+        if R < 2:
+            c3 = (BLOCKED, "needs --repeats >= 2; " + d3)
+        elif cr >= _ratio(c3t) - 1e-9:
+            c3 = (PASS, d3)
+        elif any_blocked:
+            c3 = (BLOCKED, d3 + "; some cases blocked")
+        else:
+            c3 = (FAIL, d3)
+        ev["C3_stable"] = {"state": c3[0], "detail": c3[1], "unit": "cell", "repeats": R, "cells_agree": cells,
+                           "cells_total": n_cells, "cell_ratio": round(cr, 4), "unstable": unstable}
+        ev["C4_latency"], ev["C5_cost"] = self._c4_c5(recs)
         return ev, per_case
+
+    def traps(self, per_case):
+        """Report-only: the set's trap cases (answers, majority, mean noul, expected)."""
+        out = {}
+        for cid in self.set.get("traps", []):
+            if cid not in per_case:
+                continue
+            v = per_case[cid]
+            vals = [x for x in v["noul"] if _num(x)]
+            out[cid] = {"answers": ["-" if x is None else "yes" if x else "no" for x in v["answers"]],
+                        "noul": [round(x, 4) if _num(x) else None for x in v["noul"]],
+                        "majority": "none" if v["majority"] is None else "yes" if v["majority"] else "no",
+                        "yes_votes": v["yes_votes"], "n": len(v["answers"]),
+                        "mean_noul": round(sum(vals) / len(vals), 4) if vals else None,
+                        "expected": "yes" if v["expect"]["wake"] else "no"}
+        return out
 
     def wake_acceptance(self, model, variant):
         """Report-only: majority wake answer and mean noul for the set's wake-acceptance cases."""
@@ -995,6 +1197,9 @@ class Runner:
                   "auth": ("placeholder key 'ollama'" if self.secret.public else "key loaded (redacted)")
                           if self.secret else "none",
                   "warnings": self.warnings, "preflight": self.preflight}
+        if SETS[a.set].get("wake_only"):
+            report["wake_question"] = WAKE3_QUESTIONS["wake"]
+            report["wake_rule"] = "noul > 0.5 = wake; case answer = majority of repeats"
         if config_errors:
             overall, result = FAIL, "RESULT: FAIL (config error, nothing sent: %s)" % "; ".join(config_errors)
             report["config_errors"] = config_errors
@@ -1004,12 +1209,14 @@ class Runner:
             report["ping"] = self.ping
             report["per_model"] = {}
             evals = {}
+            percase = {}
             for m in self.models:
                 evals[m] = {}
                 report["per_model"][m] = {"variants": {}, "requests": self.results[m]}
                 for v in self.variants:
                     ev, per_case = self.evaluate(m, v)
                     evals[m][v] = ev
+                    percase[(m, v)] = per_case
                     report["per_model"][m]["variants"][v] = {"criteria": ev, "cases": per_case}
             # C6 (whole run): scan transcript and serialized report for the key
             k = self.secret.get() if (self.secret and not self.secret.public) else None
@@ -1028,7 +1235,10 @@ class Runner:
                     self.p("-- %s / %s / variant %s" % (a.line, m, v))
                     for key in ("C1_connect", "C2_correct", "C3_stable"):
                         self.p("   %-11s %-7s %s" % (key, ev[key]["state"], ev[key]["detail"]))
-                        if key == "C2_correct" and (ev[key]["wrong_routes"] or ev[key]["wrong_wake"]):
+                        if key == "C2_correct" and self.wake_only:
+                            if ev[key]["wrong_wake"]:
+                                self.p("               wrong wake: %s" % ", ".join(ev[key]["wrong_wake"]))
+                        elif key == "C2_correct" and (ev[key]["wrong_routes"] or ev[key]["wrong_wake"]):
                             self.p("               wrong routes: %s | wrong wake: %s" % (
                                 ", ".join(ev[key]["wrong_routes"]) or "-", ", ".join(ev[key]["wrong_wake"]) or "-"))
                         if key == "C3_stable" and ev[key]["unstable"] and ev[key]["state"] != BLOCKED:
@@ -1052,6 +1262,17 @@ class Runner:
                             self.p("     variant %-4s %-25s majority=%s (%d/%d yes) mean_noul=%s expected=%s" % (
                                 v, cid, x["majority"], x["yes_votes"], x["n"], _fmt(x["mean_noul"]), x["expected"]))
                     report["per_model"][m]["wake_acceptance"] = wa_all
+                if self.set.get("traps"):
+                    self.p("   TRAPS (report only) %s" % m)
+                    tr_all = {}
+                    for v in self.variants:
+                        tr = self.traps(percase[(m, v)])
+                        tr_all[v] = tr
+                        for cid, x in tr.items():
+                            self.p("     variant %-6s %-25s answers=[%s] noul=[%s] majority=%s (%d/%d yes) mean_noul=%s expected=%s" % (
+                                v, cid, ",".join(x["answers"]), ",".join(_fmt(n) for n in x["noul"]), x["majority"],
+                                x["yes_votes"], x["n"], _fmt(x["mean_noul"]), x["expected"]))
+                    report["per_model"][m]["traps"] = tr_all
                 used = self._better(evals[m])
                 ev = evals[m][used]
                 gate = {"C1": ev["C1_connect"]["state"], "C2": ev["C2_correct"]["state"],
@@ -1167,6 +1388,29 @@ def _fake_answers(case, mode, call_no, variant, model):
             "urgency": _score_ans(QUESTIONS["urgency"]["criteria"], urg, score)}
 
 
+def _fake_answers_wake3(case, mode, call_no):
+    """Set 3 (wake-only) fake answers. Modes: nwrongK (first K cases wrong in all
+    runs), nflipK (first K cases wrong in run 2 only), trapwrong (trap case 10
+    wrong in all runs, trap case 16 wrong in run 2), half (case 1 noul = 0.5)."""
+    idx = next(i for i, c in enumerate(CASES_SET3) if c["id"] == case["id"])
+    wake = case["expect"]["wake"]
+    mw = re.match(r"nwrong(\d+)$", mode)
+    if mw and idx < int(mw.group(1)):
+        wake = not wake
+    mf = re.match(r"nflip(\d+)$", mode)
+    if mf and idx < int(mf.group(1)) and call_no == 2:
+        wake = not wake
+    if mode == "trapwrong" and (case["id"] == "s3c10_trap_urgent_fyi"
+                                or (case["id"] == "s3c16_trap_casual_wake" and call_no == 2)):
+        wake = not wake
+    noul = 0.93 if wake else 0.04
+    if mode == "half" and idx == 0:
+        noul = 0.5                                              # exactly 0.5 -> not wake (noul > 0.5 rule)
+    if mode == "noulrange":
+        noul = 1.7
+    return {"wake": {"type": "noul", "noul": noul}}
+
+
 class _FakeHandler(BaseHTTPRequestHandler):
     server_version = "fake-jev/2"
 
@@ -1248,6 +1492,17 @@ class _FakeHandler(BaseHTTPRequestHandler):
         case = next((c for c in ALL_CASES if case_state(c) == req.get("state")), None)
         if case is None:
             return self._send(422, {"detail": [{"loc": ["body", "state"], "msg": "unknown case", "type": "x"}]})
+        if "route" not in qs:   # set 3: wake-only
+            winstr = qs.get("wake", {}).get("instructions")
+            with srv.lock:
+                key = (model, case["id"], winstr)
+                srv.per_case[key] = srv.per_case.get(key, 0) + 1
+                call_no = srv.per_case[key]
+            me = re.match(r"nerr(\d+)$", mode)
+            if me and next(i for i, c in enumerate(CASES_SET3) if c["id"] == case["id"]) < int(me.group(1)) and call_no == 2:
+                return self._send(500, {"detail": "internal error"})   # first K cases: run 2 fails
+            return self._send(200, {"model": model, "answers": _fake_answers_wake3(case, mode, call_no),
+                                    "usage": {"input_tokens": 300, "output_tokens": 6}})
         rinstr = qs["route"]["instructions"]
         variant = next((v for v, t in ROUTE_INSTRUCTIONS.items() if t == rinstr), "?")
         with srv.lock:
@@ -1318,6 +1573,31 @@ def self_test(out) -> int:
     if qbad:
         mismatches.append("unit_question_set_check")
     w("SELFTEST %-32s %s" % ("unit_question_set_check", "ok" if not qbad else "MISMATCH %s" % qbad))
+
+    # unit: set 3 texts and question (planner spec machine checks)
+    s3bad = []
+    texts = [c["text"] for c in CASES_SET3]
+    wake_idx = [i + 1 for i, c in enumerate(CASES_SET3) if c["expect"]["wake"] is True]
+    if len(CASES_SET3) != 20 or wake_idx != [1, 3, 6, 9, 12, 15, 16, 18]:
+        s3bad.append("wake split %s" % wake_idx)
+    if any(set(c["expect"]) != {"wake"} or not isinstance(c["expect"]["wake"], bool) for c in CASES_SET3):
+        s3bad.append("expect must be {wake: bool}")
+    owner = [i + 1 for i, t in enumerate(texts) if "奈 神" in t]
+    if sum(t.count("奈 神") for t in texts) != 6 or owner != [6, 9, 12, 15, 16, 18]:
+        s3bad.append("owner mentions %s" % owner)
+    if any(t != t.strip() or not t.endswith("」") or not re.match(r"^[^「：]+：「", t) or ":「" in t for t in texts):
+        s3bad.append("speaker prefix / closing quote")
+    if "已存進 Clippings，YAML 都填好了" not in texts[19]:
+        s3bad.append("case 20 comma spacing")
+    if len({c["id"] for c in CASES_SET3}) != 20 or not all(c["id"].startswith("s3c%02d_" % (i + 1)) for i, c in enumerate(CASES_SET3)):
+        s3bad.append("ids")
+    if validate_question_set(WAKE3_QUESTIONS) or list(WAKE3_QUESTIONS) != ["wake"] \
+            or WAKE3_QUESTIONS["wake"]["type"] != "noul" or not WAKE3_INSTRUCTIONS.startswith("判斷") \
+            or WAKE3_INSTRUCTIONS.startswith("「") or WAKE3_INSTRUCTIONS.endswith("」"):
+        s3bad.append("wake question")
+    if s3bad:
+        mismatches.append("unit_set3_texts")
+    w("SELFTEST %-32s %s" % ("unit_set3_texts", "ok" if not s3bad else "MISMATCH %s" % s3bad))
 
     srv, srv_o = _start_fake(fake_key), _start_fake(OLLAMA_KEY)
     base = "http://127.0.0.1:%d" % srv.server_address[1]
@@ -1419,6 +1699,64 @@ def self_test(out) -> int:
         ("set2_unknown_set1_case_config_fail", O("ok") + ["--set", "2", "--case", "case1_write_check004"], FAIL, False,
          "config_case"),
         ("repeats_1_C3_blocked", O("ok") + ["--repeats", "1"], BLOCKED, False, None),
+        # ---- set 3 (wake-only) ----
+        ("set3_all_correct_pass", O("ok") + ["--set", "3"], PASS, False,
+         lambda r, t: r["set"] == "3" and len(r["case_ids"]) == 20 and r["variants"] == ["single"]
+         and r["thresholds"] == {"c1": [18, 20], "c2": [19, 20], "c3": [54, 60]}
+         and list(pm(r, "nimble")["variants"]) == ["single"] and pm(r, "nimble")["variant_used"] == "single"
+         and crit(r, "nimble", "single", "C1_connect")["requests"] == 60
+         and crit(r, "nimble", "single", "C1_connect")["cases_ok"] == 20
+         and crit(r, "nimble", "single", "C2_correct")["wake_correct"] == 20
+         and crit(r, "nimble", "single", "C3_stable")["cells_agree"] == 60
+         and crit(r, "nimble", "single", "C3_stable")["cells_total"] == 60
+         and r["question_set_sha256"] == question_set_sha256("3") and ("set=3 question_set_sha256=" + question_set_sha256("3")) in t
+         and r["wake_question"] == WAKE3_QUESTIONS["wake"] and pm(r, "nimble")["usage_totals"]["input_tokens"] == 300 * 60
+         and "TRAPS (report only) nimble" in t and "WAKE-ACCEPTANCE" not in t and "route=" not in t
+         and "MODEL VERDICT nimble: PASS (variant=single; failed=none)" in t),
+        ("set3_cloud_ok_keyfile", C("ok") + K + ["--set", "3"], PASS, False,
+         lambda r, t: pm(r, "jev-latest")["verdict"] == PASS and r["C6_security"]["state"] == PASS),
+        ("set3_wake_19of20_pass", O("nwrong1") + ["--set", "3"], PASS, False,
+         lambda r, t: crit(r, "nimble", "single", "C2_correct")["wake_correct"] == 19
+         and crit(r, "nimble", "single", "C2_correct")["wrong_wake"] == ["s3c01"]),
+        ("set3_wake_18of20_fail", O("nwrong2") + ["--set", "3"], FAIL, False,
+         lambda r, t: crit(r, "nimble", "single", "C2_correct")["wake_correct"] == 18
+         and "MODEL VERDICT nimble: FAIL (variant=single; failed=C2)" in t),
+        ("set3_C3_54of60_pass", O("nflip6") + ["--set", "3"], PASS, False,
+         lambda r, t: crit(r, "nimble", "single", "C3_stable")["cells_agree"] == 54
+         and crit(r, "nimble", "single", "C2_correct")["wake_correct"] == 20),
+        ("set3_C3_53of60_fail", O("nflip7") + ["--set", "3"], FAIL, False,
+         lambda r, t: crit(r, "nimble", "single", "C3_stable")["cells_agree"] == 53
+         and "MODEL VERDICT nimble: FAIL (variant=single; failed=C3)" in t),
+        ("set3_C1_cases_18of20_pass", O("nerr2") + ["--set", "3"], PASS, False,
+         lambda r, t: crit(r, "nimble", "single", "C1_connect")["cases_ok"] == 18
+         and crit(r, "nimble", "single", "C1_connect")["http_200"] == 58
+         and crit(r, "nimble", "single", "C2_correct")["wake_correct"] == 20),
+        ("set3_C1_cases_17of20_fail", O("nerr3") + ["--set", "3"], FAIL, False,
+         lambda r, t: crit(r, "nimble", "single", "C1_connect")["cases_ok"] == 17
+         and crit(r, "nimble", "single", "C1_connect")["http_200"] == 57
+         and "MODEL VERDICT nimble: FAIL (variant=single; failed=C1)" in t),
+        ("set3_traps_report_only", O("trapwrong") + ["--set", "3"], PASS, False,
+         lambda r, t: "TRAPS (report only) nimble" in t
+         and pm(r, "nimble")["traps"]["single"]["s3c10_trap_urgent_fyi"]["majority"] == "yes"
+         and pm(r, "nimble")["traps"]["single"]["s3c10_trap_urgent_fyi"]["expected"] == "no"
+         and pm(r, "nimble")["traps"]["single"]["s3c16_trap_casual_wake"]["answers"] == ["yes", "no", "yes"]
+         and abs(pm(r, "nimble")["traps"]["single"]["s3c16_trap_casual_wake"]["mean_noul"] - 0.6333) < 1e-9
+         and set(pm(r, "nimble")["gate"]) == {"C1", "C2", "C3", "C6"} and pm(r, "nimble")["verdict"] == PASS
+         and crit(r, "nimble", "single", "C2_correct")["wake_correct"] == 19),
+        ("set3_noul_0.5_is_not_wake", O("half") + ["--set", "3"], PASS, False,
+         lambda r, t: crit(r, "nimble", "single", "C2_correct")["wrong_wake"] == ["s3c01"]
+         and pm(r, "nimble")["variants"]["single"]["cases"]["s3c01_pr60_merge"]["majority"] is False),
+        ("set3_noul_out_of_range_C1_fail", O("noulrange") + ["--set", "3"], FAIL, False,
+         lambda r, t: crit(r, "nimble", "single", "C1_connect")["cases_ok"] == 0),
+        ("set3_two_cases_scaled_pass", O("ok") + ["--set", "3", "--case", "s3c10_trap_urgent_fyi",
+                                                   "--case", "s3c16_trap_casual_wake"], PASS, False,
+         lambda r, t: crit(r, "nimble", "single", "C1_connect")["requests"] == 6
+         and len(pm(r, "nimble")["traps"]["single"]) == 2),
+        ("set3_variant_B_ignored_note", O("ok") + ["--set", "3", "--variant", "B"], PASS, False,
+         lambda r, t: "note: --variant B ignored for set 3" in t and r["variants"] == ["single"]
+         and pm(r, "nimble")["variant_used"] == "single" and any("--variant B ignored" in x for x in r["warnings"])),
+        ("set3_unknown_set1_case_config_fail", O("ok") + ["--set", "3", "--case", "case1_write_check004"], FAIL, False,
+         "config_case"),
     ]
     saved_env = os.environ.get(KEY_ENV)
     saved_b = ROUTE_INSTRUCTIONS["B"]
@@ -1489,7 +1827,7 @@ def self_test(out) -> int:
     if mismatches:
         w("RESULT: FAIL (self-test mismatches: %s)" % ", ".join(mismatches))
         return 1
-    w("RESULT: PASS (self-test: %d/%d scenarios + 2 unit checks ok)" % (len(S), len(S)))
+    w("RESULT: PASS (self-test: %d/%d scenarios + 3 unit checks ok)" % (len(S), len(S)))
     return 0
 
 # ==========================================================================
@@ -1504,12 +1842,15 @@ def build_parser() -> argparse.ArgumentParser:
                     help="repeatable; each model judged separately (default cloud %s, ollama %s)" % (CLOUD_DEFAULT_MODEL, OLLAMA_DEFAULT_MODEL))
     ap.add_argument("--key-file", help="one-line key file (cloud). Else env %s. Ollama uses 'ollama' unless given." % KEY_ENV)
     ap.add_argument("--variant", choices=["orig", "B", "both"], default="both",
-                    help="route question wording; both = run both, verdict uses the better (default both)")
+                    help="route question wording; both = run both, verdict uses the better (default both). "
+                         "Ignored (with a note) for --set 3, which has one wording (variant=single)")
     ap.add_argument("--set", choices=sorted(SETS), default="1",
-                    help="question set: 1 = 8 cases (default), 2 = 20 cases; thresholds scale per set")
+                    help="question set: 1 = 8 cases (default), 2 = 20 cases, 3 = 20 bot-to-bot cases, "
+                         "wake question only; thresholds scale per set")
     ap.add_argument("--repeats", type=int, default=3, help="runs per case for C3 (default 3)")
     ap.add_argument("--stable-unit", choices=["pair", "case"], default="pair",
-                    help="C3 unit: pair (case,question; default) or case (all 3 questions). Both are reported.")
+                    help="C3 unit: pair (case,question; default) or case (all 3 questions). Both are reported. "
+                         "Not used by --set 3 (C3 counts case x run cells)")
     ap.add_argument("--case", action="append", help="only these case ids of the chosen --set (repeatable); "
                                                     "ids are listed in the JSON report")
     ap.add_argument("--ping", action="store_true", help="also send the Ollama-blog billing ticket once per model (not scored)")
