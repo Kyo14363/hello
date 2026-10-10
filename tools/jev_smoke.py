@@ -62,6 +62,13 @@ the --repeats runs (more than half of the runs must agree, else no answer).
        >= 54/60. (--stable-unit does not apply to set 3.)
   C4/C5 report only, C6 as above. Plus a report-only TRAPS section for cases
   10 and 16 (urgent tone/no wake, casual tone/wake); it never affects verdicts.
+Set 4 (blind wake-only, v0.5.0): questions are not in this file. --questions PATH
+is required; the raw file sha256 must equal SET4_QUESTIONS_SHA256. A mismatch
+prints the actual sha and exits 2 before any request. Same noul question and
+wake = noul > 0.5 rule as set 3, but the instructions omit the final sentence
+「不要只看口氣是否緊急。」. No answer key and no pass/fail. Each report case has
+id, noul, wake and borderline (0.4 <= noul <= 0.6). Exit 0 only when every
+case got a score.
 The header prints question_set_sha256 = sha256 of the canonical JSON
 (sort_keys, ensure_ascii=False, separators=(",",":")) of the set's cases,
 expected answers and per-variant questions (instructions + criteria).
@@ -110,7 +117,7 @@ ROUTE_CRITERIA = {
     "none": "不用交：結案、致謝、純分享",
 }
 
-TOOL_VERSION = "0.4.0"
+TOOL_VERSION = "0.5.0"
 SYSTEM_ONE_PATH = "/v1/systemone"
 MODELS_PATH = "/v1/models"
 CLOUD_DEFAULT_BASE_URL = "https://api.typesafe.ai"   # typesafe-sdk 0.7.2 DEFAULT_BASE_URL
@@ -243,6 +250,22 @@ WAKE3_QUESTIONS = {
     },
 }
 
+# Set 4 reuses the set 3 noul question (criteria and wake = noul > 0.5) but the
+# instructions drop the final sentence. The 20 question texts are NOT embedded;
+# --questions supplies the file and its raw sha256 must equal the constant.
+WAKE4_DROPPED_SENTENCE = "不要只看口氣是否緊急。"
+assert WAKE3_INSTRUCTIONS.endswith(WAKE4_DROPPED_SENTENCE)
+WAKE4_INSTRUCTIONS = WAKE3_INSTRUCTIONS[:-len(WAKE4_DROPPED_SENTENCE)]
+WAKE4_QUESTIONS = {
+    "wake": {
+        "type": WAKE3_QUESTIONS["wake"]["type"],
+        "instructions": WAKE4_INSTRUCTIONS,
+        "criteria": dict(WAKE3_QUESTIONS["wake"]["criteria"]),
+    },
+}
+SET4_QUESTIONS_SHA256 = "d03f0ba9393460891163a2c6164ba915342df4f4085655027f05844b95559d1b"
+SET4_IDS = tuple("s4c%02d" % i for i in range(1, 21))
+
 CASES_SET3 = [
     {"id": "s3c01_pr60_merge", "text": "小豬在 work work 標小貓：「check_005 閘門 PR #60 開好了，請驗收合併。」",
      "expect": {"wake": True}},
@@ -305,6 +328,8 @@ SETS = {
     "3": {"cases": CASES_SET3, "c1": (18, 20), "c2": (19, 20), "c3": (54, 60), "c3_label": "54/60",
           "wake_acceptance": [], "wake_only": True,
           "traps": ["s3c10_trap_urgent_fyi", "s3c16_trap_casual_wake"]},
+    # Set 4 is intentionally absent. It has no answer key; its questions come from
+    # an external file. question_set_sha256_all for sets 1-3 stays {"1","2","3"}.
 }
 
 
@@ -338,6 +363,53 @@ def question_set_canonical(set_id: str) -> str:
 
 def question_set_sha256(set_id: str) -> str:
     return hashlib.sha256(question_set_canonical(set_id).encode("utf-8")).hexdigest()
+
+
+def set4_is_wake(noul: float) -> bool:
+    """wake = noul > 0.5 (exactly 0.5 is not a wake). Same rule as sets 1-3."""
+    return noul > 0.5
+
+
+def set4_is_borderline(noul: float) -> bool:
+    """True when 0.4 <= noul <= 0.6, inclusive."""
+    return 0.4 <= noul <= 0.6
+
+
+def set4_case_row(case_id: str, noul: float) -> dict:
+    return {"id": case_id, "noul": noul, "wake": set4_is_wake(noul), "borderline": set4_is_borderline(noul)}
+
+
+def load_set4_questions(path: str):
+    """Load the external set 4 questions file.
+
+    Returns (cases, sha_hex, error). error is None on success, "mismatch" when
+    the file was read but its sha256 is not SET4_QUESTIONS_SHA256 (sha_hex is
+    the actual digest), or a short message for any other refusal. Callers must
+    not send a request when error is set.
+    """
+    try:
+        with open(path, "rb") as fh:
+            raw = fh.read()
+    except OSError as e:
+        return None, None, "cannot read --questions (%s)" % type(e).__name__
+    sha = hashlib.sha256(raw).hexdigest()
+    if sha != SET4_QUESTIONS_SHA256:
+        return None, sha, "mismatch"
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None, sha, "questions file is not UTF-8 JSON"
+    if not isinstance(data, list) or len(data) != 20:
+        return None, sha, "questions must be a JSON list of 20 objects"
+    cases = []
+    for i, item in enumerate(data):
+        if (not isinstance(item, dict) or not isinstance(item.get("id"), str)
+                or not isinstance(item.get("text"), str) or not item["text"].strip()):
+            return None, sha, "questions[%d] must have string id and non-empty text" % i
+        cases.append({"id": item["id"], "text": item["text"]})
+    if [c["id"] for c in cases] != list(SET4_IDS):
+        return None, sha, "question ids must be s4c01..s4c20 in order"
+    return cases, sha, None
 
 
 # Optional --ping connectivity check (the Ollama blog example; not scored).
@@ -788,6 +860,8 @@ class Runner:
 
     # -- main --------------------------------------------------------------------
     def run(self) -> int:
+        if self.a.set == "4":
+            return self.run_set4()
         a = self.a
         self.started = datetime.now().astimezone()
         self.base = (a.base_url or (CLOUD_DEFAULT_BASE_URL if a.line == "cloud" else OLLAMA_DEFAULT_BASE_URL)).rstrip("/")
@@ -1325,6 +1399,191 @@ class Runner:
         self.p(result)
         return EXIT_CODES[overall]
 
+    def _write_set4_report(self, report: dict) -> None:
+        a = self.a
+        if not a.out:
+            return
+        report = dict(report)
+        report.setdefault("finished_at", datetime.now().astimezone().isoformat(timespec="seconds"))
+        text = mask(json.dumps(report, ensure_ascii=False, indent=2), self.secret)
+        k = self.secret.get() if (self.secret and not self.secret.public) else None
+        if k and k in text:
+            text = "{}"
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
+            with open(a.out, "w", encoding="utf-8") as fh:
+                fh.write(text + "\n")
+            self.p("report: %s" % a.out)
+        except OSError as e:
+            self.p("report: could not write %s (%s)" % (a.out, type(e).__name__))
+
+    def run_set4(self) -> int:
+        """Blind wake-only run. One request per case. No answer key and no pass/fail.
+
+        Exit 0 when every model has a noul for all 20 cases. Exit 2 when the
+        questions file is refused (sha mismatch prints the actual sha and sends
+        nothing) or the line is blocked before any score. Exit 1 when an API or
+        schema error leaves a case unscored.
+        """
+        a = self.a
+        self.started = datetime.now().astimezone()
+        self.wake_only = True
+        self.variants = [WAKE3_VARIANT]
+        if not a.questions:
+            self.p("error: --questions is required when --set 4")
+            return 2
+        if a.case:
+            self.p("error: --case cannot be used with --set 4 (all 20 questions are run)")
+            return 2
+        cases, sha, err = load_set4_questions(a.questions)
+        if err == "mismatch":
+            self._write_set4_report({
+                "tool": "jev_smoke", "tool_version": TOOL_VERSION, "set": "4",
+                "error": "sha256_mismatch",
+                "question_set_sha256_expected": SET4_QUESTIONS_SHA256,
+                "question_set_sha256_actual": sha,
+            })
+            self.p("questions sha256 mismatch: got %s" % sha)
+            return 2
+        if err:
+            self.p("error: %s" % err)
+            return 2
+
+        self.base = (a.base_url or (CLOUD_DEFAULT_BASE_URL if a.line == "cloud" else OLLAMA_DEFAULT_BASE_URL)).rstrip("/")
+        self.models = a.model or [CLOUD_DEFAULT_MODEL if a.line == "cloud" else OLLAMA_DEFAULT_MODEL]
+        self.cases = cases
+        self.qs_sha = sha
+        self.p("jev_smoke %s line=%s base_url=%s models=%s cases=%d repeats=%d variants=%s stable_unit=%s" % (
+            TOOL_VERSION, a.line, self.base, ",".join(self.models), len(self.cases), 1, WAKE3_VARIANT, "n/a"))
+        self.p("set=4 question_set_sha256=%s" % sha)
+        self.p("note: set 4 is blind (no answer key, no pass/fail); wake = noul > 0.5; "
+               "borderline when 0.4 <= noul <= 0.6; one request per case")
+        if a.variant != "both":
+            note = "--variant %s ignored for set 4 (one wake question, one wording; variant=%s)" % (
+                a.variant, WAKE3_VARIANT)
+            self.p("note: " + note)
+            self.warnings.append(note)
+        if a.repeats != 1:
+            self.p("note: --repeats %d ignored for set 4 (one request per case)" % a.repeats)
+        if a.ping:
+            self.p("note: --ping ignored for set 4")
+        cfg = validate_question_set(WAKE4_QUESTIONS)
+        if cfg:
+            for e in cfg:
+                self.p("config error (nothing sent): %s" % e)
+            return 2
+        if a.dry_run:
+            self.p("DRY-RUN set4 POST %s%s x1 per case" % (self.base, SYSTEM_ONE_PATH))
+            self.p(json.dumps({"model": self.models[0], "state": case_state(self.cases[0]),
+                               "questions": WAKE4_QUESTIONS}, ensure_ascii=True))
+            self.p("RESULT: ERROR (dry-run, nothing sent)")
+            return 2
+
+        parts = urllib.parse.urlsplit(self.base)
+        self.secret, key_problem, warns = load_key(a.line, a.key_file)
+        for wmsg in warns:
+            self.p("key: %s" % wmsg)
+            self.warnings.append(wmsg)
+        self.p("auth: %s" % (("placeholder key 'ollama'" if self.secret.public else "key loaded (not shown)")
+                             if self.secret else "no key"))
+        if self._inject_leak and self.secret.get():
+            raw = "SELFTEST-LEAK " + self.secret.get()
+            self.transcript.append(raw)
+            self.out.write(raw + "\n")
+        if parts.scheme not in ("http", "https") or not parts.hostname:
+            self.line_block = ("bad_base_url", "base url must be http(s)://host[:port]")
+        elif key_problem:
+            self.line_block = ("missing_key", key_problem)
+        elif a.line == "cloud" and parts.scheme == "http" and not _is_loopback(parts.hostname):
+            self.line_block = ("insecure_base_url", "refusing to send the key over plain http to a non-loopback host")
+        if not self.line_block and not a.skip_preflight:
+            (self.preflight_ollama if a.line == "ollama" else self.preflight_cloud)(self.models)
+
+        qs = WAKE4_QUESTIONS
+        rows = {m: [] for m in self.models}
+        for model in self.models:
+            for case in self.cases:
+                cid = case["id"]
+                blk = self.line_block or self.model_block.get(model)
+                if blk:
+                    self.p("[BLOCKED] %-10s %-6s r1 %-8s %s: %s" % (model, WAKE3_VARIANT, cid, blk[0], blk[1]))
+                    rows[model].append({"id": cid, "noul": None, "wake": None, "borderline": False, "error": blk[0]})
+                    continue
+                res = self.call(model, case_state(case), qs)
+                if res["state"] != PASS:
+                    tag = "BLOCKED" if res["state"] == BLOCKED else "ERR"
+                    self.p("[%s] %-10s %-6s r1 %-8s %s: %s" % (
+                        tag, model, WAKE3_VARIANT, cid, res["code"], res["detail"]))
+                    if res.get("scope") == "line":
+                        self.line_block = (res["code"], res["detail"])
+                    elif res.get("scope") == "model":
+                        self.model_block[model] = (res["code"], res["detail"])
+                    rows[model].append({"id": cid, "noul": None, "wake": None,
+                                        "borderline": False, "error": res["code"]})
+                    continue
+                errs, notes = validate_response(qs, res["data"])
+                if errs:
+                    self.p("[ERR ] %-10s %-6s r1 %-8s %6.0fms schema: %s" % (
+                        model, WAKE3_VARIANT, cid, res["latency_ms"], "; ".join(errs)))
+                    rows[model].append({"id": cid, "noul": None, "wake": None, "borderline": False, "error": "schema"})
+                    continue
+                wn = res["data"]["answers"]["wake"].get("noul")
+                row = set4_case_row(cid, wn)
+                rows[model].append(row)
+                self.p("[ OK ] %-10s %-6s r1 %-8s %6.0fms noul=%s wake=%s borderline=%s" % (
+                    model, WAKE3_VARIANT, cid, res["latency_ms"], _fmt(wn),
+                    "true" if row["wake"] else "false", "true" if row["borderline"] else "false"))
+                for n in notes:
+                    self.p("       note: %s" % n)
+
+        def scored_row(r):
+            return _num(r.get("noul")) and isinstance(r.get("wake"), bool) and "error" not in r
+
+        scored = {m: sum(1 for r in rows[m] if scored_row(r)) for m in self.models}
+        borderline = {m: [r["id"] for r in rows[m] if r.get("borderline") is True] for m in self.models}
+        per_model = {}
+        for m in self.models:
+            per_model[m] = {
+                "question_set_sha256": sha,
+                "instructions": WAKE4_INSTRUCTIONS,
+                "cases": [set4_case_row(r["id"], r["noul"]) if scored_row(r) else
+                          {"id": r["id"], "noul": None, "wake": None, "borderline": False, "error": r.get("error")}
+                          for r in rows[m]],
+                "borderline_ids": borderline[m],
+                "scored": scored[m],
+                "cases_total": len(self.cases),
+            }
+        report = {
+            "tool": "jev_smoke", "tool_version": TOOL_VERSION, "set": "4", "blind": True,
+            "question_set_sha256": sha, "instructions": WAKE4_INSTRUCTIONS,
+            "wake_rule": "noul > 0.5", "borderline_rule": "0.4 <= noul <= 0.6",
+            "line": a.line, "base_url": self.base, "models": list(self.models),
+            "questions_file": a.questions, "started_at": self.started.isoformat(timespec="seconds"),
+            "per_model": per_model, "borderline_ids": borderline,
+        }
+        k = self.secret.get() if (self.secret and not self.secret.public) else None
+        hit_stdout = bool(k) and any(k in line for line in self.transcript)
+        hit_report = bool(k) and (k in json.dumps(report, ensure_ascii=True) or k in json.dumps(report, ensure_ascii=False))
+        hits = [n for n, h in (("stdout", hit_stdout), ("report", hit_report)) if h]
+        if hits:
+            report["key_leak"] = True
+            self.p("error: key string found in %s" % ", ".join(hits))
+        all_scored = all(scored[m] == len(self.cases) == 20 for m in self.models) and not hits
+        for m in self.models:
+            ids = borderline[m]
+            self.p("borderline ids (%s): %s" % (m, ", ".join(ids) if ids else "(none)"))
+        self._write_set4_report(report)
+        detail = ", ".join("%s %d/%d scored" % (m, scored[m], len(self.cases)) for m in self.models)
+        if all_scored:
+            self.p("RESULT: SCORED (%s)" % detail)
+            return 0
+        if not any(scored.values()) and (self.line_block or all(self.model_block.get(m) for m in self.models)):
+            why = self.line_block[0] if self.line_block else "blocked"
+            self.p("RESULT: ERROR (%s; %s)" % (why, detail))
+            return 2
+        self.p("RESULT: ERROR (%s)" % detail)
+        return 1
+
 # ==========================================================================
 # Self-test: in-process fake server
 # ==========================================================================
@@ -1445,6 +1704,8 @@ class _FakeHandler(BaseHTTPRequestHandler):
         return None
 
     def do_GET(self):
+        with self.server.lock:
+            self.server.gets += 1
         mode, rest = self._split()
         if rest == "/api/version":
             return self._send(200, {"version": "0.34.2" if mode == "old" else "0.35.0"})
@@ -1489,6 +1750,20 @@ class _FakeHandler(BaseHTTPRequestHandler):
             resp = json.loads(json.dumps(BLOG_SAMPLE_RESPONSE))
             resp["model"] = model
             return self._send(200, resp)
+        # Set 4 self-test only. s4_scores stays None for sets 1-3, so those
+        # requests still resolve through ALL_CASES below.
+        s4_scores = getattr(srv, "s4_scores", None)
+        if s4_scores is not None and isinstance(qs, dict) and "route" not in qs:
+            state = req.get("state")
+            msg = state.get("message") if isinstance(state, dict) else None
+            if msg in s4_scores:
+                with srv.lock:
+                    srv.s4_wake.append(qs.get("wake"))
+                if msg in getattr(srv, "s4_fail", ()):
+                    return self._send(500, {"detail": "internal error"})
+                return self._send(200, {"model": model,
+                                        "answers": {"wake": {"type": "noul", "noul": s4_scores[msg]}},
+                                        "usage": {"input_tokens": 10, "output_tokens": 1}})
         case = next((c for c in ALL_CASES if case_state(c) == req.get("state")), None)
         if case is None:
             return self._send(422, {"detail": [{"loc": ["body", "state"], "msg": "unknown case", "type": "x"}]})
@@ -1522,6 +1797,7 @@ class _FakeHandler(BaseHTTPRequestHandler):
 def _start_fake(expected_key: str):
     srv = ThreadingHTTPServer(("127.0.0.1", 0), _FakeHandler)
     srv.expected_key, srv.lock, srv.posts, srv.per_case = expected_key, threading.Lock(), 0, {}
+    srv.gets, srv.s4_scores, srv.s4_fail, srv.s4_wake = 0, None, (), []
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -1535,6 +1811,7 @@ def _free_port() -> int:
 
 
 def self_test(out) -> int:
+    global SET4_QUESTIONS_SHA256
     fake_key = KEY_PREFIX + ("SeLfTeSt0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" * 2)[:KEY_LEN - len(KEY_PREFIX)]
     assert len(fake_key) == KEY_LEN
 
@@ -1543,6 +1820,8 @@ def self_test(out) -> int:
         out.flush()
     w("jev_smoke %s self-test (fake server on 127.0.0.1, fake key, nothing leaves this machine)" % TOOL_VERSION)
     mismatches = []
+    unit_checks = 3
+    s4_scenarios = 0
 
     # unit: one-line key file
     variants = [(fake_key + "\n", fake_key, False), ("\ufeff  %s  \r\n" % fake_key, fake_key, False),
@@ -1599,6 +1878,93 @@ def self_test(out) -> int:
         mismatches.append("unit_set3_texts")
     w("SELFTEST %-32s %s" % ("unit_set3_texts", "ok" if not s3bad else "MISMATCH %s" % s3bad))
 
+    # unit: set 4 instructions, unchanged set 1-3 hashes, borderline boundaries
+    s4bad = []
+    exact4 = ("判斷這則 Bot 間訊息發出時要不要叫醒收件方。收件方必須接著動手（有時限，或有人在等）"
+              "就是「喚醒」；只是結果、狀態或 FYI 就是「不喚醒」。")
+    if WAKE4_INSTRUCTIONS != exact4 or WAKE3_INSTRUCTIONS != exact4 + WAKE4_DROPPED_SENTENCE:
+        s4bad.append("instructions")
+    if WAKE4_DROPPED_SENTENCE in WAKE4_INSTRUCTIONS:
+        s4bad.append("dropped sentence still present")
+    if (WAKE4_QUESTIONS["wake"]["criteria"] != WAKE3_QUESTIONS["wake"]["criteria"]
+            or WAKE4_QUESTIONS["wake"]["type"] != "noul" or validate_question_set(WAKE4_QUESTIONS)):
+        s4bad.append("criteria")
+    if set(SETS) != {"1", "2", "3"}:
+        s4bad.append("SETS keys %s" % sorted(SETS))
+    want_sha = {
+        "1": "659c6638c19424086c41a0b676b3f201e91c062893d49b42e7642fc414cc1b26",
+        "2": "3e499742a9148e5e8412ee9186b5dc5dd9a3d72970ad8ee42bd4413e6c31ce81",
+        "3": "72b00bd63b2a7ed01c6e7559fb5481290d1a4a812dc5ba51bb8dcda61821f782",
+    }
+    got_sha = {k: question_set_sha256(k) for k in "123"}
+    if got_sha != want_sha:
+        s4bad.append("set sha changed")
+    if (TOOL_VERSION != "0.5.0"
+            or SET4_QUESTIONS_SHA256 != "d03f0ba9393460891163a2c6164ba915342df4f4085655027f05844b95559d1b"):
+        s4bad.append("version or set4 constant")
+    if list(SET4_IDS) != ["s4c%02d" % i for i in range(1, 21)]:
+        s4bad.append("ids")
+    for noul, wake, border in (
+            (0.4, False, True), (0.5, False, True), (0.6, True, True),
+            (0.0, False, False), (1.0, True, False), (0.39, False, False), (0.61, True, False),
+            (math.nextafter(0.4, 0.0), False, False), (math.nextafter(0.4, 1.0), False, True),
+            (math.nextafter(0.5, 0.0), False, True), (math.nextafter(0.5, 1.0), True, True),
+            (math.nextafter(0.6, 0.0), True, True), (math.nextafter(0.6, 1.0), True, False)):
+        row = set4_case_row("s4c01", noul)
+        y = json.loads(json.dumps(noul))
+        if (row["wake"] is not wake or row["borderline"] is not border
+                or set(row) != {"id", "noul", "wake", "borderline"}
+                or set4_is_wake(y) is not wake or set4_is_borderline(y) is not border):
+            s4bad.append("boundary %r -> %s" % (noul, row))
+            break
+    fd, bad_path = tempfile.mkstemp(prefix="jev_s4_bad_", suffix=".json")
+    bad_raw = b'[{"id":"s4c01","text":"not the official file"}]\n'
+    os.write(fd, bad_raw)
+    os.close(fd)
+    try:
+        cases_b, sha_b, err_b = load_set4_questions(bad_path)
+        if cases_b is not None or err_b != "mismatch" or sha_b != hashlib.sha256(bad_raw).hexdigest():
+            s4bad.append("mismatch loader")
+        if sha_b == SET4_QUESTIONS_SHA256:
+            s4bad.append("mismatch collided")
+        missing_cases, missing_sha, missing_err = load_set4_questions(bad_path + ".missing")
+        if missing_cases is not None or missing_sha is not None or not str(missing_err).startswith("cannot read"):
+            s4bad.append("missing file")
+    finally:
+        os.remove(bad_path)
+    ex = build_parser().parse_args(["--set", "4", "--questions", "set4_questions.json",
+                                    "--base", "http://localhost:11434", "--model", "tev1"])
+    if (ex.base_url != "http://localhost:11434" or ex.questions != "set4_questions.json"
+            or ex.model != ["tev1"] or ex.line is not None or infer_set4_line(ex) != "ollama"):
+        s4bad.append("example argv")
+    plain = build_parser().parse_args(["--line", "ollama", "--set", "1"])
+    if plain.questions is not None or plain.set != "1":
+        s4bad.append("set 1 still has no questions flag requirement")
+    if s4bad:
+        mismatches.append("unit_set4_rules")
+    unit_checks += 1
+    w("SELFTEST %-32s %s" % ("unit_set4_rules", "ok" if not s4bad else "MISMATCH %s" % s4bad))
+
+    def _cli_error(argv):
+        buf = io.StringIO()
+        code = None
+        try:
+            with contextlib.redirect_stderr(buf):
+                main(argv)
+        except SystemExit as e:
+            code = e.code
+        return code, buf.getvalue()
+
+    code_q, err_q = _cli_error(["--set", "4", "--base", "http://127.0.0.1:9", "--timeout", "1", "--model", "tev1"])
+    q_ok = code_q == 2 and "--questions is required when --set 4" in err_q
+    code_l, err_l = _cli_error(["--set", "1", "--base-url", "http://127.0.0.1:9", "--timeout", "1"])
+    l_ok = code_l == 2 and "--line cloud|ollama is required" in err_l and "--questions is required" not in err_l
+    if not (q_ok and l_ok):
+        mismatches.append("unit_set4_missing_questions")
+    unit_checks += 1
+    w("SELFTEST %-32s %s" % ("unit_set4_missing_questions",
+                             "ok" if q_ok and l_ok else "MISMATCH q=%s line=%s" % (code_q, code_l)))
+
     srv, srv_o = _start_fake(fake_key), _start_fake(OLLAMA_KEY)
     base = "http://127.0.0.1:%d" % srv.server_address[1]
     obase = "http://127.0.0.1:%d" % srv_o.server_address[1]
@@ -1627,7 +1993,8 @@ def self_test(out) -> int:
          and "models passing: tev1:0.8b, tev1" in t and "WAKE-ACCEPTANCE" not in t),
         ("cloud_ok_keyfile", C("ok") + K, PASS, False,
          lambda r, t: pm(r, "jev-latest")["usage_totals"]["input_tokens"] == 300 * 48
-         and ("set=1 question_set_sha256=" + question_set_sha256("1")) in t and r["thresholds"]["c1"] == [7, 8]),
+         and ("set=1 question_set_sha256=" + question_set_sha256("1")) in t and r["thresholds"]["c1"] == [7, 8]
+         and set(r["question_set_sha256_all"]) == {"1", "2", "3"}),
         ("cloud_ok_env_key", C("ok"), PASS, False, None),
         ("cloud_retry_after_429", C("429once") + K, PASS, False, None),
         ("route_7_of_8_still_pass", O("oneroute"), PASS, False,
@@ -1815,6 +2182,193 @@ def self_test(out) -> int:
             w("SELFTEST %-32s want=%-7s exit=%d key_in_stdout=%-3s key_in_report=%-3s %s | %s" % (
                 name, want, code, "yes" if in_stdout else "no", "yes" if in_report else "no",
                 "ok" if ok else "MISMATCH", mask(last, Secret(fake_key))[:140]))
+
+        # ---- set 4: sha gate, missing --questions, mocked borderline scores ----
+        def _reset_fake():
+            for s_ in (srv, srv_o):
+                with s_.lock:
+                    s_.posts, s_.per_case, s_.gets = 0, {}, 0
+                    s_.s4_scores = None
+                    s_.s4_fail = ()
+                    s_.s4_wake = []
+
+        def _run_s4(name, argv, scores=None, fail=()):
+            _reset_fake()
+            srv_o.s4_scores = scores
+            srv_o.s4_fail = tuple(fail)
+            rpt = os.path.join(tmp, name + ".json")
+            args = build_parser().parse_args(argv + ["--out", rpt, "--timeout", "10"])
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = Runner(args, buf).run()
+            text = buf.getvalue()
+            try:
+                text.encode("ascii")
+                ascii_ok = True
+            except UnicodeEncodeError:
+                ascii_ok = False
+            rtext = ""
+            if os.path.exists(rpt):
+                rtext = open(rpt, encoding="utf-8").read()
+            return code, text, rtext, ascii_ok, srv_o.posts, srv_o.gets
+
+        def _s4_note(name, ok, code, posts, gets, text):
+            if not ok:
+                mismatches.append(name)
+                w("---- output of %s ----\n%s----" % (name, text[:2500]))
+            w("SELFTEST %-32s exit=%s posts=%s gets=%s %s" % (name, code, posts, gets, "ok" if ok else "MISMATCH"))
+
+        s4_scenarios += 1
+        mismatch_raw = b'{"not":"the questions"}\n'
+        mismatch_path = os.path.join(tmp, "s4_mismatch.json")
+        with open(mismatch_path, "wb") as fh:
+            fh.write(mismatch_raw)
+        mismatch_sha = hashlib.sha256(mismatch_raw).hexdigest()
+        code = posts = gets = None
+        text = ""
+        try:
+            code, text, rtext, ascii_ok, posts, gets = _run_s4(
+                "set4_sha_mismatch",
+                ["--line", "ollama", "--base-url", obase + "/ok", "--set", "4",
+                 "--questions", mismatch_path, "--model", "nimble"])
+            rep = json.loads(rtext) if rtext else {}
+            last = text.strip().splitlines()[-1] if text.strip() else ""
+            ok = (code == 2 and ascii_ok and posts == 0 and gets == 0
+                  and last == "questions sha256 mismatch: got %s" % mismatch_sha
+                  and "RESULT: PASS" not in text and "RESULT: FAIL" not in text and "MODEL VERDICT" not in text
+                  and rep.get("error") == "sha256_mismatch"
+                  and rep.get("question_set_sha256_actual") == mismatch_sha
+                  and rep.get("question_set_sha256_expected") == "d03f0ba9393460891163a2c6164ba915342df4f4085655027f05844b95559d1b"
+                  and "cases" not in rep)
+        except Exception as e:
+            ok = False
+            text = "exception %s: %s\n%s" % (type(e).__name__, e, text)
+        _s4_note("set4_sha_mismatch_no_call", ok, code, posts, gets, text)
+
+        s4_scenarios += 1
+        code = posts = gets = None
+        text = ""
+        try:
+            code, text, rtext, ascii_ok, posts, gets = _run_s4(
+                "set4_missing_questions_runner",
+                ["--line", "ollama", "--base-url", obase + "/ok", "--set", "4", "--model", "nimble"])
+            ok = (code == 2 and ascii_ok and posts == 0 and gets == 0
+                  and "error: --questions is required when --set 4" in text
+                  and "MODEL VERDICT" not in text)
+        except Exception as e:
+            ok = False
+            text = "exception %s: %s\n%s" % (type(e).__name__, e, text)
+        _s4_note("set4_missing_questions_runner", ok, code, posts, gets, text)
+
+        mock_scores = [
+            0.4, 0.6, 0.5, 0.39, 0.61, 0.0, 1.0,
+            math.nextafter(0.4, 0.0), math.nextafter(0.4, 1.0),
+            math.nextafter(0.5, 0.0), math.nextafter(0.5, 1.0),
+            math.nextafter(0.6, 0.0), math.nextafter(0.6, 1.0),
+            0.3, 0.7, 0.2, 0.8, 0.4, 0.6, 0.25,
+        ]
+        payload = [{"id": i, "text": i} for i in SET4_IDS]
+        raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        qpath = os.path.join(tmp, "s4_mock.json")
+        with open(qpath, "wb") as fh:
+            fh.write(raw)
+        digest = hashlib.sha256(raw).hexdigest()
+        saved_const = SET4_QUESTIONS_SHA256
+        score_map = {i: mock_scores[n] for n, i in enumerate(SET4_IDS)}
+        try:
+            SET4_QUESTIONS_SHA256 = digest
+            s4_scenarios += 1
+            code = posts = gets = None
+            text = ""
+            try:
+                code, text, rtext, ascii_ok, posts, gets = _run_s4(
+                    "set4_borderline",
+                    ["--line", "ollama", "--base-url", obase + "/ok", "--set", "4",
+                     "--questions", qpath, "--model", "nimble", "--skip-preflight"],
+                    scores=score_map)
+                rep = json.loads(rtext)
+                pm = rep["per_model"]["nimble"]
+                by = {c["id"]: c for c in pm["cases"]}
+                want_border = []
+                row_ok = len(pm["cases"]) == 20
+                for cid, noul in score_map.items():
+                    c = by[cid]
+                    if c.get("noul") != noul or c.get("wake") is not set4_is_wake(noul) or c.get("borderline") is not set4_is_borderline(noul):
+                        row_ok = False
+                    elif set(c) != {"id", "noul", "wake", "borderline"}:
+                        row_ok = False
+                    if set4_is_borderline(noul):
+                        want_border.append(cid)
+                want_border = [i for i in SET4_IDS if i in want_border]
+                explicit = (
+                    by["s4c01"]["wake"] is False and by["s4c01"]["borderline"] is True
+                    and by["s4c02"]["wake"] is True and by["s4c02"]["borderline"] is True
+                    and by["s4c03"]["wake"] is False and by["s4c03"]["borderline"] is True
+                    and by["s4c04"]["wake"] is False and by["s4c04"]["borderline"] is False
+                    and by["s4c05"]["wake"] is True and by["s4c05"]["borderline"] is False
+                    and by["s4c08"]["wake"] is False and by["s4c08"]["borderline"] is False
+                    and by["s4c09"]["wake"] is False and by["s4c09"]["borderline"] is True
+                    and by["s4c11"]["wake"] is True and by["s4c11"]["borderline"] is True
+                    and by["s4c13"]["wake"] is True and by["s4c13"]["borderline"] is False
+                    and by["s4c06"]["wake"] is False and by["s4c07"]["wake"] is True
+                    and by["s4c07"]["borderline"] is False)
+                border_line = "borderline ids (nimble): " + ", ".join(want_border)
+                dumped = json.dumps(rep, ensure_ascii=False)
+                instr_ok = (
+                    pm["instructions"] == WAKE4_INSTRUCTIONS == rep["instructions"]
+                    and rep["question_set_sha256"] == digest == pm["question_set_sha256"]
+                    and len(srv_o.s4_wake) == 20
+                    and all(q and q.get("instructions") == WAKE4_INSTRUCTIONS
+                            and q.get("criteria") == {"true": "喚醒", "false": "不喚醒"}
+                            and WAKE4_DROPPED_SENTENCE not in (q.get("instructions") or "")
+                            for q in srv_o.s4_wake))
+                no_grade = ("RESULT: PASS" not in text and "RESULT: FAIL" not in text
+                            and "MODEL VERDICT" not in text and "RESULT: BLOCKED" not in text
+                            and '"expect"' not in dumped and '"verdict"' not in dumped
+                            and "C2_correct" not in dumped and "question_set_sha256_all" not in dumped)
+                last = text.strip().splitlines()[-1] if text.strip() else ""
+                ok = (code == 0 and ascii_ok and row_ok and explicit and instr_ok and no_grade
+                      and pm["borderline_ids"] == want_border and border_line in text
+                      and last.startswith("RESULT: SCORED (nimble 20/20 scored)")
+                      and posts == 20 and gets == 0 and pm["scored"] == 20 and rep.get("blind") is True
+                      and fake_key not in text and fake_key not in rtext)
+            except Exception as e:
+                ok = False
+                text = "exception %s: %s\n%s" % (type(e).__name__, e, text)
+            _s4_note("set4_borderline_mocked_scores", ok, code, posts, gets, text)
+
+            s4_scenarios += 1
+            code = posts = gets = None
+            text = ""
+            try:
+                code, text, rtext, ascii_ok, posts, gets = _run_s4(
+                    "set4_api_error",
+                    ["--line", "ollama", "--base-url", obase + "/ok", "--set", "4",
+                     "--questions", qpath, "--model", "nimble", "--skip-preflight"],
+                    scores=score_map, fail=("s4c01",))
+                rep = json.loads(rtext)
+                c0 = rep["per_model"]["nimble"]["cases"][0]
+                borders = rep["borderline_ids"]["nimble"]
+                ok = (code == 1 and ascii_ok and posts == 20
+                      and c0["id"] == "s4c01" and c0["noul"] is None and c0["wake"] is None
+                      and c0["borderline"] is False and "s4c01" not in borders and "s4c02" in borders
+                      and rep["per_model"]["nimble"]["scored"] == 19
+                      and "RESULT: SCORED" not in text and "RESULT: PASS" not in text
+                      and "RESULT: FAIL" not in text and "MODEL VERDICT" not in text
+                      and "RESULT: ERROR (nimble 19/20 scored)" in text)
+            except Exception as e:
+                ok = False
+                text = "exception %s: %s\n%s" % (type(e).__name__, e, text)
+            _s4_note("set4_api_error_nonzero", ok, code, posts, gets, text)
+        finally:
+            SET4_QUESTIONS_SHA256 = saved_const
+        restored_cases, restored_sha, restored_err = load_set4_questions(qpath)
+        if not (restored_cases is None and restored_err == "mismatch" and restored_sha == digest
+                and SET4_QUESTIONS_SHA256 == saved_const):
+            mismatches.append("set4_constant_restored")
+            w("SELFTEST %-32s MISMATCH" % "set4_constant_restored")
+        else:
+            w("SELFTEST %-32s ok" % "set4_constant_restored")
     finally:
         ROUTE_INSTRUCTIONS["B"] = saved_b
         if saved_env is None:
@@ -1827,7 +2381,8 @@ def self_test(out) -> int:
     if mismatches:
         w("RESULT: FAIL (self-test mismatches: %s)" % ", ".join(mismatches))
         return 1
-    w("RESULT: PASS (self-test: %d/%d scenarios + 3 unit checks ok)" % (len(S), len(S)))
+    n_scen = len(S) + s4_scenarios
+    w("RESULT: PASS (self-test: %d/%d scenarios + %d unit checks ok)" % (n_scen, n_scen, unit_checks))
     return 0
 
 # ==========================================================================
@@ -1837,22 +2392,28 @@ def self_test(out) -> int:
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Verify a TypeSafe Jev-style /v1/systemone line (cloud or local Ollama).")
     ap.add_argument("--line", choices=["cloud", "ollama"])
-    ap.add_argument("--base-url", help="API root (default cloud %s, ollama %s)" % (CLOUD_DEFAULT_BASE_URL, OLLAMA_DEFAULT_BASE_URL))
+    ap.add_argument("--base-url", "--base", dest="base_url",
+                    help="API root (default cloud %s, ollama %s). --base is an alias"
+                         % (CLOUD_DEFAULT_BASE_URL, OLLAMA_DEFAULT_BASE_URL))
     ap.add_argument("--model", action="append",
                     help="repeatable; each model judged separately (default cloud %s, ollama %s)" % (CLOUD_DEFAULT_MODEL, OLLAMA_DEFAULT_MODEL))
     ap.add_argument("--key-file", help="one-line key file (cloud). Else env %s. Ollama uses 'ollama' unless given." % KEY_ENV)
     ap.add_argument("--variant", choices=["orig", "B", "both"], default="both",
                     help="route question wording; both = run both, verdict uses the better (default both). "
-                         "Ignored (with a note) for --set 3, which has one wording (variant=single)")
-    ap.add_argument("--set", choices=sorted(SETS), default="1",
-                    help="question set: 1 = 8 cases (default), 2 = 20 cases, 3 = 20 bot-to-bot cases, "
-                         "wake question only; thresholds scale per set")
+                         "Ignored (with a note) for --set 3 and --set 4, which have one wording (variant=single)")
+    ap.add_argument("--questions",
+                    help="path to the set 4 questions JSON (required for --set 4). "
+                         "SHA-256 of the raw file must equal the built-in set 4 constant")
+    ap.add_argument("--set", choices=sorted([*SETS, "4"]), default="1",
+                    help="question set: 1 = 8 cases (default), 2 = 20 cases, "
+                         "3 = 20 bot-to-bot cases, wake question only, "
+                         "4 = blind wake-only from --questions (no answer key)")
     ap.add_argument("--repeats", type=int, default=3, help="runs per case for C3 (default 3)")
     ap.add_argument("--stable-unit", choices=["pair", "case"], default="pair",
                     help="C3 unit: pair (case,question; default) or case (all 3 questions). Both are reported. "
-                         "Not used by --set 3 (C3 counts case x run cells)")
+                         "Not used by --set 3 (C3 counts case x run cells) or --set 4")
     ap.add_argument("--case", action="append", help="only these case ids of the chosen --set (repeatable); "
-                                                    "ids are listed in the JSON report")
+                                                    "not valid with --set 4. Ids are listed in the JSON report")
     ap.add_argument("--ping", action="store_true", help="also send the Ollama-blog billing ticket once per model (not scored)")
     ap.add_argument("--mem-note", help="local line: free-text memory note for C5 (e.g. 'ollama ps: 9.8 GB')")
     ap.add_argument("--out", default="jev_report.json", help="JSON report path (default jev_report.json)")
@@ -1863,16 +2424,35 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
+def infer_set4_line(args) -> str | None:
+    """When --set 4 omits --line, localhost or port 11434 is Ollama; typesafe.ai is cloud."""
+    base = getattr(args, "base_url", None) or ""
+    parts = urllib.parse.urlsplit(base)
+    host = (parts.hostname or "").lower()
+    if host in ("localhost", "127.0.0.1", "::1") or parts.port == 11434:
+        return "ollama"
+    if host == "typesafe.ai" or host.endswith(".typesafe.ai"):
+        return "cloud"
+    return None
+
+
 def main(argv=None) -> int:
     try:
         sys.stdout.reconfigure(errors="backslashreplace")
     except Exception:
         pass
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
     if args.self_test:
         return self_test(sys.stdout)
+    if args.set == "4" and not args.questions:
+        parser.error("--questions is required when --set 4")
     if not args.line:
-        build_parser().error("--line cloud|ollama is required (or use --self-test)")
+        inferred = infer_set4_line(args) if args.set == "4" else None
+        if inferred:
+            args.line = inferred
+        else:
+            parser.error("--line cloud|ollama is required (or use --self-test)")
     if args.timeout is None:
         args.timeout = 120.0 if args.line == "ollama" else 30.0
     return Runner(args, sys.stdout).run()
