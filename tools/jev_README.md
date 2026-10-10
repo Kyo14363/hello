@@ -10,10 +10,11 @@
 Both lines use `POST /v1/systemone`. Preflight calls `GET /v1/models` on cloud, and `GET /api/version` plus `/api/tags` on Ollama.
 
 ## What it sends
-There are three fixed sets of cases, chosen with `--set`:
+There are four sets of cases, chosen with `--set`:
 - `--set 1` (default) has 8 cases.
 - `--set 2` has 20 cases, covering gates, implementation, acceptance, coordination, owner escalation and no-handoff messages.
 - `--set 3` has 20 bot-to-bot messages and asks **only** the wake question (see [Set 3 (wake-only)](#set-3-wake-only) below).
+- `--set 4` reads 20 questions from `--questions` and asks **only** the wake question. The script has no answer key (see [Set 4 (blind wake-only)](#set-4-blind-wake-only) below).
 
 Sets 1 and 2 use the same `ROUTE_CRITERIA`, the same `orig`/`B` wordings and the same three questions. Each case is sent as `state={"message": ...}` with the same three questions:
 - `route` (choice): `sheep` / `pig` / `dog` / `cat` / `owner` / `none`. The descriptions live in **`ROUTE_CRITERIA`**, one constant near the top of the file.
@@ -24,13 +25,14 @@ Route wording variants: `orig` = 這則團隊聊天訊息接下來應該交給�
 
 Each case runs `--repeats` times (default 3). With both variants and one model that is 8 x 3 x 2 = 48 requests for set 1, or 20 x 3 x 2 = 120 for set 2.
 
-The header prints `set=<n> question_set_sha256=<hex>`, and the report stores it too. It is the sha256 of the canonical JSON (`sort_keys=True, ensure_ascii=False, separators=(",",":")`) of the set's cases (id, state as sent, expected answers) plus each variant's questions (instructions and criteria). The same hash means the same questions.
+The header prints `set=<n> question_set_sha256=<hex>`, and the report stores it too. For sets 1-3 it is the sha256 of the canonical JSON (`sort_keys=True, ensure_ascii=False, separators=(",",":")`) of the set's cases (id, state as sent, expected answers) plus each variant's questions (instructions and criteria). The same hash means the same questions. Set 4 uses a different hash: the SHA-256 of the raw `--questions` file (see below).
 
 | set | question_set_sha256 |
 |---|---|
 | 1 | `659c6638c19424086c41a0b676b3f201e91c062893d49b42e7642fc414cc1b26` |
 | 2 | `3e499742a9148e5e8412ee9186b5dc5dd9a3d72970ad8ee42bd4413e6c31ce81` |
 | 3 | `72b00bd63b2a7ed01c6e7559fb5481290d1a4a812dc5ba51bb8dcda61821f782` |
+| 4 | `d03f0ba9393460891163a2c6164ba915342df4f4085655027f05844b95559d1b` (SHA-256 of the external questions file) |
 
 Every `--model` is judged on its own.
 
@@ -81,7 +83,37 @@ Set 3 adds a report-only section, **`TRAPS (report only)`**, which does not affe
 
 The set 3 `question_set_sha256` uses the same canonical JSON as sets 1 and 2: case ids, state as sent, expected answers, and the one `single` question (instructions and criteria).
 
-**A model can be added when C1, C2, C3 and C6 are all PASS.**
+## Set 4 (blind wake-only)
+Added in v0.5.0. Purpose: score real bot-to-bot messages for wake. The questions are not in this repo. The script records scores only. The acceptance bot holds the answer key separately and compares the report afterwards.
+
+`--questions PATH` is required. The file is a JSON list of 20 objects, each `{"id","text"}`, with ids `s4c01` through `s4c20` in that order. Before any request, the script hashes the raw file bytes and compares them to the constant in the table above (`d03f0ba9393460891163a2c6164ba915342df4f4085655027f05844b95559d1b`). On a mismatch it prints `questions sha256 mismatch: got <actual sha256>` and exits 2. Nothing is sent.
+
+The question is set 3's noul question: criteria `true` = 喚醒, `false` = 不喚醒, and wake = `noul > 0.5` (exactly 0.5 is not a wake). The instructions text is set 3's text with the final sentence removed, and nothing after it:
+
+> 判斷這則 Bot 間訊息發出時要不要叫醒收件方。收件方必須接著動手（有時限，或有人在等）就是「喚醒」；只是結果、狀態或 FYI 就是「不喚醒」。
+
+One request per case. `--variant`, `--repeats`, `--stable-unit` and `--case` do not apply (`--case` is an error). Each case is sent as `state={"message": <text>}`.
+
+The JSON report (`--out`, UTF-8) has `question_set_sha256`, the instructions text, and `per_model`. Each model object repeats the sha and the instructions, and lists every case as `id`, `noul`, `wake` (true or false) and `borderline`. `borderline` is true when `0.4 <= noul <= 0.6`. The run also prints one summary line per model:
+
+```
+borderline ids (<model>): s4c01, s4c03
+```
+
+`(none)` when that model has no score in the band. The list does not change the exit code.
+
+Exit codes for set 4:
+- 0 when every model has a score for all 20 cases. The last line is `RESULT: SCORED (...)`.
+- 2 when the questions sha mismatches, `--questions` is missing, the file cannot be used, or the line is blocked before any score. `--dry-run` also exits 2 after the sha check and sends nothing.
+- 1 when an API or schema error leaves at least one case without a score. The last line is `RESULT: ERROR (...)`.
+
+```text
+python tools/jev_smoke.py --set 4 --questions set4_questions.json --base http://localhost:11434 --model tev1
+```
+
+`--base` is an alias of `--base-url`. With `--set 4`, if `--line` is omitted and the base URL is localhost or port 11434, the run uses the ollama line. The same command with the flags written out is `--line ollama --base-url http://localhost:11434`.
+
+**A model can be added, for sets 1-3, when C1, C2, C3 and C6 are all PASS.** Set 4 does not produce that verdict.
 
 BLOCKED covers these cases:
 - the endpoint is unreachable
@@ -128,8 +160,9 @@ $LASTEXITCODE
 You can set `$env:TYPESAFE_API_KEY` instead of `--key-file`. Keep the key out of command lines and history. The ollama line never sends `TYPESAFE_API_KEY`.
 
 ### Useful flags
-- `--set 1|2|3` (default 1). For example, add `--set 2` to either line's command to run the 20-case set, or `--set 3` for the 20-case wake-only set (one wording, so set 3 sends 20 x 3 = 60 requests per model).
-- `--variant orig|B|both`, `--repeats N`, `--stable-unit pair|case` (`--variant` and `--stable-unit` do not apply to `--set 3`)
+- `--set 1|2|3|4` (default 1). For example, add `--set 2` to either line's command to run the 20-case set, or `--set 3` for the 20-case wake-only set (one wording, so set 3 sends 20 x 3 = 60 requests per model). `--set 4` is the blind wake-only run (one request per case): `python tools/jev_smoke.py --set 4 --questions set4_questions.json --base http://localhost:11434 --model tev1`
+- `--questions PATH` is required for `--set 4`. The file's SHA-256 must equal `d03f0ba9393460891163a2c6164ba915342df4f4085655027f05844b95559d1b`.
+- `--variant orig|B|both`, `--repeats N`, `--stable-unit pair|case` (`--variant` and `--stable-unit` do not apply to `--set 3` or `--set 4`; `--case` does not apply to `--set 4`)
 - `--case <id>` (repeatable; the ids belong to the chosen `--set` and are listed in the report's `case_ids`)
 - `--ping`
 - `--skip-preflight`
