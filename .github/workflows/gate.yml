@@ -1,6 +1,7 @@
-# Actually run hello work-order gates.
-# Discovery and acceptance live in tools/ci_run_gates.py (stdlib only).
-# This job does not take secrets and does not call out after checkout.
+# Run hello work-order gates for real.
+# tools/ci_run_gates.py selects check_NNN.py, scope-checks the diff,
+# and compares accepted gate hashes to tools/gate_acceptance_lock.json.
+# Stdlib only. No secrets. No network after checkout.
 
 name: gate
 
