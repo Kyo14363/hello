@@ -1,0 +1,32 @@
+# Actually run hello work-order gates.
+# Discovery and acceptance live in tools/ci_run_gates.py (stdlib only).
+# This job does not take secrets and does not call out after checkout.
+
+name: gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run work-order gates
+        run: python3 tools/ci_run_gates.py
