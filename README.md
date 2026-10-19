@@ -56,7 +56,9 @@ git push -u origin feature/readme-update
 
 不改既有 `check_NNN.py`，也不把 spec 裡的 Definition of done 當指令執行。只用標準庫，不上網、不讀密鑰。
 
-紅燈不會自動擋住合併。要擋，必須在分支保護或 ruleset 把這個 check 設成 required（Checks 裡通常顯示成 `gate / gate`）。這次沒有改 repository 設定。
+只跑被碰到的工單；完全沒碰到才全跑。因此只改 `src/agy_wrote.txt` 時不會連帶跑 003／004 裡面對 001 的回歸。
+
+紅燈不會自動擋住合併。check 名稱是 `gate`。要擋，必須在分支保護或 ruleset 把它設成 required。這次沒有改 repository 設定。
 
 ---
 
