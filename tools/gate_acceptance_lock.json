@@ -64,6 +64,19 @@
       "check_sha256": "0268bf292a4c9255134d0046534beeea68abdc7688f7204468b384255c1348fd",
       "spec_path": "specs/005-offline-data-gate-demo.md",
       "spec_row_sha256": "59bf50a04fa0888c696aac34771ec1e7b61fd86ec324b3c67dd86ee46871cd57"
+    },
+    "006": {
+      "acceptances": [
+        {
+          "check_sha256": "0476139bc5f6cab17561781d54d3f4a542d80f7f5f7b262c4317cd75f71adcbf",
+          "reason": "initial acceptance; pin records this gate and spec row and is not recomputed from a later live tree",
+          "spec_row_sha256": "5a19bf044451f62914600021b35b25f0cd20eb2601cf9e3e955ad17402ce2632"
+        }
+      ],
+      "check_path": "tools/check_006.py",
+      "check_sha256": "0476139bc5f6cab17561781d54d3f4a542d80f7f5f7b262c4317cd75f71adcbf",
+      "spec_path": "specs/006-hello-takes-a-name.md",
+      "spec_row_sha256": "5a19bf044451f62914600021b35b25f0cd20eb2601cf9e3e955ad17402ce2632"
     }
   },
   "schema": 1
