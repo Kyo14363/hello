@@ -1,0 +1,33 @@
+# Run hello work-order gates for real.
+# tools/ci_run_gates.py selects check_NNN.py, scope-checks the diff,
+# and compares accepted gate hashes to tools/gate_acceptance_lock.json.
+# Stdlib only. No secrets. No network after checkout.
+
+name: gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run work-order gates
+        run: python3 tools/ci_run_gates.py

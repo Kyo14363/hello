@@ -48,6 +48,16 @@ git push -u origin feature/readme-update
 ```
 然後到 GitHub 網頁點選「Compare & pull request」，建立 PR，檢查後合併。
 
+## CI 工單閘門
+
+`.github/workflows/gate.yml` 的 job 名稱是 `gate`。每個 pull request，以及 push 到 `main`，都會跑 `python3 tools/ci_run_gates.py`。
+
+本倉沒有 manifest，也沒有 `accept_work_order.py`。範圍來自 `specs/*.md` 表格的 `expected_paths`。diff 碰到哪些工單，就跑哪些 `python3 tools/check_NNN.py`；一個都沒碰到就全部回歸。碰到工單時，改動檔必須落在該單的 `expected_paths` 裡。基礎建設檔只有 `.github/`、`docs/`、`README.md`、`tools/ci_run_gates.py`、`tools/gate_acceptance_lock.json`。
+
+已驗收閘門的 sha256 記在 `tools/gate_acceptance_lock.json`。閘門或對應的 spec 列改了，卻沒有追加一筆帶原因與新哈希的 re-acceptance，job 就失敗。基準是這份鎖檔，不是當時的活樹。
+
+只用標準庫，不上網、不讀密鑰。紅燈不會自動擋住合併。check 名稱是 `gate`，要擋必須由擁有者把它設成 required。對照表見 `docs/GATE-DESIGN.md`。
+
 ---
 
 祝練習順利！

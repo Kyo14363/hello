@@ -1,0 +1,70 @@
+{
+  "orders": {
+    "001": {
+      "acceptances": [
+        {
+          "check_sha256": "fd5cc138cff9f2ceef22391c74e5ee234edb71326f7090987f754b0fdf3361cd",
+          "reason": "initial acceptance; pin records this gate and spec row and is not recomputed from a later live tree",
+          "spec_row_sha256": "e669bdd729ee787302533135f43409d73db72c27b665b8aca542e81083d6d16c"
+        }
+      ],
+      "check_path": "tools/check_001.py",
+      "check_sha256": "fd5cc138cff9f2ceef22391c74e5ee234edb71326f7090987f754b0fdf3361cd",
+      "spec_path": "specs/001-agy-writes-its-own-bytes.md",
+      "spec_row_sha256": "e669bdd729ee787302533135f43409d73db72c27b665b8aca542e81083d6d16c"
+    },
+    "002": {
+      "acceptances": [
+        {
+          "check_sha256": "f2c8fa499a38d36adc116308013fd07b129945733fe42cacda325ce60a25f434",
+          "reason": "initial acceptance; pin records this gate and spec row and is not recomputed from a later live tree",
+          "spec_row_sha256": "d032f79397593b3a6082df7f6ae8521daf567bb3e5ba0f53be0eecce7454166f"
+        }
+      ],
+      "check_path": "tools/check_002.py",
+      "check_sha256": "f2c8fa499a38d36adc116308013fd07b129945733fe42cacda325ce60a25f434",
+      "spec_path": "specs/002-agy-headless-needs-skip-permissions.md",
+      "spec_row_sha256": "d032f79397593b3a6082df7f6ae8521daf567bb3e5ba0f53be0eecce7454166f"
+    },
+    "003": {
+      "acceptances": [
+        {
+          "check_sha256": "ca55f49688e716560c45f38278816588c814028f9f26991ac6b176bfd8ab4597",
+          "reason": "initial acceptance; pin records this gate and spec row and is not recomputed from a later live tree",
+          "spec_row_sha256": "7a25ed5ef6c2e34acda28e94770c1d179dc608de8edebc4263a63d8eaa37d99a"
+        }
+      ],
+      "check_path": "tools/check_003.py",
+      "check_sha256": "ca55f49688e716560c45f38278816588c814028f9f26991ac6b176bfd8ab4597",
+      "spec_path": "specs/003-agy-edits-hello-and-adds-a-test.md",
+      "spec_row_sha256": "7a25ed5ef6c2e34acda28e94770c1d179dc608de8edebc4263a63d8eaa37d99a"
+    },
+    "004": {
+      "acceptances": [
+        {
+          "check_sha256": "8debba1598ab0f5b300057a02162b9acc81911d777d4f54915fd51f4acad12d5",
+          "reason": "initial acceptance; pin records this gate and spec row and is not recomputed from a later live tree",
+          "spec_row_sha256": "5c9eeb7682318f02e7a787b09ef31ee21a32d7b8c09630160945c3265ddb06fd"
+        }
+      ],
+      "check_path": "tools/check_004.py",
+      "check_sha256": "8debba1598ab0f5b300057a02162b9acc81911d777d4f54915fd51f4acad12d5",
+      "spec_path": "specs/004-cloud-agent-adds-farewell.md",
+      "spec_row_sha256": "5c9eeb7682318f02e7a787b09ef31ee21a32d7b8c09630160945c3265ddb06fd"
+    },
+    "005": {
+      "acceptances": [
+        {
+          "check_sha256": "0268bf292a4c9255134d0046534beeea68abdc7688f7204468b384255c1348fd",
+          "reason": "initial acceptance of the offline data-gate demo",
+          "spec_row_sha256": "59bf50a04fa0888c696aac34771ec1e7b61fd86ec324b3c67dd86ee46871cd57"
+        }
+      ],
+      "check_path": "tools/check_005.py",
+      "check_sha256": "0268bf292a4c9255134d0046534beeea68abdc7688f7204468b384255c1348fd",
+      "spec_path": "specs/005-offline-data-gate-demo.md",
+      "spec_row_sha256": "59bf50a04fa0888c696aac34771ec1e7b61fd86ec324b3c67dd86ee46871cd57"
+    }
+  },
+  "schema": 1
+}
