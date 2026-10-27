@@ -77,6 +77,19 @@
       "check_sha256": "0476139bc5f6cab17561781d54d3f4a542d80f7f5f7b262c4317cd75f71adcbf",
       "spec_path": "specs/006-hello-takes-a-name.md",
       "spec_row_sha256": "5a19bf044451f62914600021b35b25f0cd20eb2601cf9e3e955ad17402ce2632"
+    },
+    "007": {
+      "acceptances": [
+        {
+          "check_sha256": "90ef2f7437d101008709affdcd7954e742fd01bf049937cd1b5ac949e2de7153",
+          "reason": "initial acceptance; pin records this gate and spec row and is not recomputed from a later live tree",
+          "spec_row_sha256": "f9d48d52e9824d716653d96df042451162dca459dca21e9f3a6ca3ffcf4c032b"
+        }
+      ],
+      "check_path": "tools/check_007.py",
+      "check_sha256": "90ef2f7437d101008709affdcd7954e742fd01bf049937cd1b5ac949e2de7153",
+      "spec_path": "specs/007-join-names.md",
+      "spec_row_sha256": "f9d48d52e9824d716653d96df042451162dca459dca21e9f3a6ca3ffcf4c032b"
     }
   },
   "schema": 1
