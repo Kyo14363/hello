@@ -21,6 +21,11 @@ compares the files to that committed pin. It never rewrites the lock from
 the live tree. A change needs a new acceptance entry: a reason and the new
 sha256. Older entries must stay byte-for-byte.
 
+A spec file can merge before its gate. With no expected_paths row and no
+check file, that base commit is not the work order yet. The PR that adds
+both is a new acceptance. A row without its check file, or a check file
+without its spec, is still a partial order.
+
 Stdlib only. No network. ASCII stdout.
 """
 
@@ -218,7 +223,7 @@ def sha256_bytes(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def spec_row_bytes(data, spec_rel):
+def spec_row_bytes(data, spec_rel, missing_ok=False):
     if isinstance(data, str):
         data = data.encode("utf-8")
     rows = []
@@ -233,6 +238,8 @@ def spec_row_bytes(data, spec_rel):
             continue
         rows.append(raw)
     if not rows:
+        if missing_ok:
+            return None
         raise GateError(spec_rel + " has no expected_paths row")
     if len(rows) != 1:
         raise GateError(spec_rel + " has " + str(len(rows)) + " expected_paths rows")
@@ -568,9 +575,90 @@ def fixture_self_test():
     )
 
 
+def git_fixture(root, args):
+    proc = subprocess.run(
+        ["git", "-C", str(root), "-c", "commit.gpgsign=false", *args],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip()
+        raise GateError("fixture git " + " ".join(args) + " failed: " + detail)
+    return proc.stdout
+
+
+def fixture_spec_before_gate():
+    """A spec-only base is not a partial order. A row without its check is."""
+    with tempfile.TemporaryDirectory(prefix="gate-pins-") as tmp:
+        root = Path(tmp)
+        git_fixture(root, ["init", "-b", "main"])
+        git_fixture(root, ["config", "user.email", "gate-fixture@example.com"])
+        git_fixture(root, ["config", "user.name", "gate fixture"])
+        (root / "specs").mkdir()
+        (root / "tools").mkdir()
+        spec = root / "specs" / "008-initials.md"
+        check = root / "tools" / "check_008.py"
+        order = WorkOrder(
+            "008", "tools/check_008.py",
+            ("specs/008-initials.md", "tools/check_008.py"),
+            "specs/008-initials.md",
+        )
+
+        spec.write_text("# spec only\n", encoding="utf-8")
+        git_fixture(root, ["add", "specs/008-initials.md"])
+        git_fixture(root, ["commit", "-m", "spec only"])
+        spec_only = git_fixture(root, ["rev-parse", "HEAD"]).strip()
+        require(
+            pins_at(root, spec_only, [order]) == {},
+            "spec without expected_paths is not an order yet",
+        )
+
+        spec.write_text(
+            fixture_spec(("specs/008-initials.md", "tools/check_008.py")),
+            encoding="utf-8",
+        )
+        git_fixture(root, ["add", "specs/008-initials.md"])
+        git_fixture(root, ["commit", "-m", "row without check"])
+        row_only = git_fixture(root, ["rev-parse", "HEAD"]).strip()
+        try:
+            pins_at(root, row_only, [order])
+        except GateError as exc:
+            require("only part" in str(exc), "row without check got " + str(exc))
+        else:
+            require(False, "row without check should be a partial order")
+
+        check.write_text("# gate\n", encoding="utf-8")
+        git_fixture(root, ["add", "tools/check_008.py"])
+        git_fixture(root, ["commit", "-m", "gate"])
+        both = git_fixture(root, ["rev-parse", "HEAD"]).strip()
+        orders = discover(root)
+        require(
+            [item.number for item in orders] == ["008"],
+            "discovered " + ",".join(item.number for item in orders),
+        )
+        require("008" not in pins_at(root, spec_only, orders), "spec-only base pin")
+        pinned = pins_at(root, both, orders)
+        require("008" in pinned, "both files should pin")
+        require(
+            pinned["008"]["check"] == sha256_bytes(b"# gate\n"),
+            "check pin " + pinned["008"]["check"],
+        )
+
+        spec.unlink()
+        git_fixture(root, ["add", "-A"])
+        git_fixture(root, ["commit", "-m", "check only"])
+        check_only = git_fixture(root, ["rev-parse", "HEAD"]).strip()
+        try:
+            pins_at(root, check_only, [order])
+        except GateError as exc:
+            require("only part" in str(exc), "check without spec got " + str(exc))
+        else:
+            require(False, "check without spec should be a partial order")
+
+
 def self_test(repo=None):
     repo = Path(REPO_ROOT if repo is None else repo)
     fixture_self_test()
+    fixture_spec_before_gate()
     orders = discover(repo)
     if not orders:
         raise GateError("no work orders discovered")
@@ -698,13 +786,24 @@ def resolve_changed(repo, args):
 
 
 def pins_at(repo, rev, orders):
+    """Return pins for orders that already existed on rev.
+
+    A spec with no expected_paths row and no check file is not an order
+    yet (the spec can merge first). A row without the check file, or a
+    check file without the spec, is a partial order.
+    """
     pins = {}
     for order in orders:
         check_bytes = git_blob(repo, rev, order.check_rel)
         spec_bytes = git_blob(repo, rev, order.spec_rel)
         if check_bytes is None and spec_bytes is None:
             continue
-        if check_bytes is None or spec_bytes is None:
+        if check_bytes is None:
+            row = spec_row_bytes(spec_bytes, order.spec_rel, missing_ok=True)
+            if row is None:
+                continue
+            raise GateError("base has only part of work order " + order.number)
+        if spec_bytes is None:
             raise GateError("base has only part of work order " + order.number)
         row = spec_row_bytes(spec_bytes, order.spec_rel)
         pins[order.number] = {
