@@ -90,6 +90,19 @@
       "check_sha256": "90ef2f7437d101008709affdcd7954e742fd01bf049937cd1b5ac949e2de7153",
       "spec_path": "specs/007-join-names.md",
       "spec_row_sha256": "f9d48d52e9824d716653d96df042451162dca459dca21e9f3a6ca3ffcf4c032b"
+    },
+    "008": {
+      "acceptances": [
+        {
+          "check_sha256": "c790fe46bd865083e4bbac4aa230dd2ea5b3c97c96b88eb905740fa55341e698",
+          "reason": "initial acceptance; pin records this gate and spec row and is not recomputed from a later live tree",
+          "spec_row_sha256": "8eb94f1194ef36dc3e17a2f776543fb465ced95637a60f496e2058ea09c8b377"
+        }
+      ],
+      "check_path": "tools/check_008.py",
+      "check_sha256": "c790fe46bd865083e4bbac4aa230dd2ea5b3c97c96b88eb905740fa55341e698",
+      "spec_path": "specs/008-initials.md",
+      "spec_row_sha256": "8eb94f1194ef36dc3e17a2f776543fb465ced95637a60f496e2058ea09c8b377"
     }
   },
   "schema": 1
