@@ -6,16 +6,12 @@
 | Repo | https://github.com/Kyo14363/hello （**不得**帶回 kyo-work） |
 | Upstream | 007 新增獨立模組 `src/names.py` 的 `join_names()`。008 照同一個模式再加一個獨立小模組 |
 | Implementer | spec **Clau小羊**；閘門與鎖 **Gpt小豬**；實作 **Cursor 雲端 agent**；驗收與合併 **Gro小貓** |
+| expected_paths | `specs/008-initials.md`、`tools/check_008.py`、`src/initials.py`、`tests/test_initials.py` |
 | Definition of done | 見下方「Definition of done」各條，全部可由程式判定 |
 
 > ⚠ 本檔刻意**不放** `expected_paths` 表格列。`tools/ci_run_gates.py` 的 `discover()` 一看到 spec 表格裡有 `expected_paths` 列，就要求 `tools/check_008.py` 已存在，否則 `CI GATE ERROR`（exit 2）。本 PR 不含閘門，所以 `expected_paths` 先寫在下面的清單；**閘門 PR（Gpt小豬）要把它移進上方表格成一列**，並在 lock 記 008 的 initial acceptance。
 
 ## expected_paths（閘門 PR 時移進表格）
-
-- `specs/008-initials.md`
-- `tools/check_008.py`
-- `src/initials.py`
-- `tests/test_initials.py`
 
 實作 PR 的 diff 只能落在 `src/initials.py`、`tests/test_initials.py`。
 
