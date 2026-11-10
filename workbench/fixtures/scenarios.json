@@ -1,0 +1,677 @@
+{
+  "schema": 1,
+  "base": {
+    "now": 1000,
+    "snapshot": {
+      "state": "RUNNING",
+      "probe": {
+        "status": "ok",
+        "consecutive_failures": 0
+      },
+      "progress": {
+        "value": 120,
+        "last_advanced_at": 999
+      },
+      "checkpoint": {
+        "step": 120,
+        "confirmed": true,
+        "confirmed_at": 990
+      },
+      "outputs": {
+        "unsaved": 0,
+        "pending_download": 0,
+        "first_unverified": null,
+        "sha_mismatch": 0,
+        "download_retries_used": 0
+      },
+      "cu_used": 5,
+      "elapsed_minutes": 60,
+      "limit_hit_at": null,
+      "unknown_since": null,
+      "human_command": "none",
+      "bot_request": "none",
+      "human_hold": false,
+      "stop_intent": "none",
+      "host": "online",
+      "remote": "running",
+      "release_check": "not_started",
+      "release_retries_used": 0,
+      "done_signal": false,
+      "queue_empty": false
+    },
+    "contract": {
+      "job_id": "demo-J3-001",
+      "template_id": "tpl-demo-train",
+      "job_type": "J3",
+      "workload_kind": "training",
+      "cu_cap": 10,
+      "cu_soft_ratio": 0.8,
+      "max_minutes": 120,
+      "heartbeat": {
+        "stall_minutes": 20
+      },
+      "on_host_offline": "pause_safely",
+      "submitted_by": "human"
+    },
+    "policy": {
+      "probe_confirm_count": 3,
+      "unknown_alert_minutes": 30,
+      "budget_conflict_mode": "C",
+      "grace_cu_ratio": 0.1,
+      "grace_minutes": 15,
+      "save_before_max_minutes": 10,
+      "download_retry_limit": 3,
+      "release_recheck_limit": 3
+    }
+  },
+  "scenarios": [
+    {
+      "id": "T01",
+      "title": "查詢單次失敗",
+      "set": {
+        "snapshot.probe.status": "failed",
+        "snapshot.probe.consecutive_failures": 1
+      },
+      "expect": {
+        "action": "WAIT",
+        "next_state": "RUNNING",
+        "reason_code": "PROBE_RETRY",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "none",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T02",
+      "title": "查詢連續失敗達門檻",
+      "set": {
+        "snapshot.probe.status": "timeout",
+        "snapshot.probe.consecutive_failures": 3
+      },
+      "expect": {
+        "action": "MARK_UNKNOWN",
+        "next_state": "UNKNOWN",
+        "reason_code": "PROBE_UNCERTAIN",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "none",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T03",
+      "title": "狀態不明過久",
+      "set": {
+        "snapshot.state": "UNKNOWN",
+        "snapshot.probe.status": "failed",
+        "snapshot.probe.consecutive_failures": 5,
+        "snapshot.unknown_since": 960
+      },
+      "expect": {
+        "action": "ESCALATE",
+        "next_state": "BLOCKED",
+        "reason_code": "UNKNOWN_TOO_LONG",
+        "data_at_risk": false,
+        "notify_human": true,
+        "human_hold_after": false,
+        "stop_intent": "none",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T04",
+      "title": "心跳停滯",
+      "set": {
+        "snapshot.progress.last_advanced_at": 975
+      },
+      "expect": {
+        "action": "COLLECT",
+        "next_state": "COLLECTING",
+        "reason_code": "STALLED",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "fail",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T05",
+      "title": "程序活著且剛前進",
+      "set": {
+        "snapshot.progress.last_advanced_at": 1000
+      },
+      "expect": {
+        "action": "CONTINUE",
+        "next_state": "RUNNING",
+        "reason_code": "OK",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "none",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T06",
+      "title": "預算軟上限",
+      "set": {
+        "snapshot.cu_used": 8
+      },
+      "expect": {
+        "action": "REQUEST_SAVE",
+        "next_state": "SAVING",
+        "reason_code": "CU_SOFT_CAP",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "pause",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T07",
+      "title": "硬上限且已保存",
+      "set": {
+        "snapshot.cu_used": 10,
+        "snapshot.limit_hit_at": 1000
+      },
+      "expect": {
+        "action": "COLLECT",
+        "next_state": "COLLECTING",
+        "reason_code": "CU_HARD_CAP",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "pause",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T08",
+      "title": "硬上限未保存，C 寬限內",
+      "set": {
+        "snapshot.cu_used": 10.5,
+        "snapshot.limit_hit_at": 995,
+        "snapshot.outputs.unsaved": 2
+      },
+      "expect": {
+        "action": "REQUEST_SAVE",
+        "next_state": "SAVING",
+        "reason_code": "CU_HARD_CAP_UNSAVED",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "pause",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T09",
+      "title": "硬上限未保存，C 寬限 CU 用完",
+      "set": {
+        "snapshot.cu_used": 11.1,
+        "snapshot.limit_hit_at": 995,
+        "snapshot.outputs.unsaved": 2
+      },
+      "expect": {
+        "action": "RELEASE",
+        "next_state": "RELEASING",
+        "reason_code": "CU_GRACE_EXHAUSTED",
+        "data_at_risk": true,
+        "notify_human": true,
+        "human_hold_after": false,
+        "stop_intent": "pause",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T09b",
+      "title": "硬上限未保存，C 寬限分鐘先到",
+      "set": {
+        "snapshot.cu_used": 10.2,
+        "snapshot.limit_hit_at": 985,
+        "snapshot.outputs.unsaved": 2
+      },
+      "expect": {
+        "action": "RELEASE",
+        "next_state": "RELEASING",
+        "reason_code": "CU_GRACE_EXHAUSTED",
+        "data_at_risk": true,
+        "notify_human": true,
+        "human_hold_after": false,
+        "stop_intent": "pause",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T10a",
+      "title": "同 T08，模式 A",
+      "set": {
+        "snapshot.cu_used": 10.5,
+        "snapshot.limit_hit_at": 995,
+        "snapshot.outputs.unsaved": 2,
+        "policy.budget_conflict_mode": "A"
+      },
+      "expect": {
+        "action": "RELEASE",
+        "next_state": "RELEASING",
+        "reason_code": "CU_HARD_CAP_UNSAVED",
+        "data_at_risk": true,
+        "notify_human": true,
+        "human_hold_after": false,
+        "stop_intent": "pause",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T10b",
+      "title": "同 T09，模式 B（無上限等保存）",
+      "set": {
+        "snapshot.cu_used": 11.1,
+        "snapshot.limit_hit_at": 985,
+        "snapshot.outputs.unsaved": 2,
+        "policy.budget_conflict_mode": "B"
+      },
+      "expect": {
+        "action": "REQUEST_SAVE",
+        "next_state": "SAVING",
+        "reason_code": "CU_HARD_CAP_UNSAVED",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "pause",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T11",
+      "title": "人搶停 Bot 的工作",
+      "set": {
+        "contract.submitted_by": "bot:demo",
+        "snapshot.human_command": "stop_after_save"
+      },
+      "expect": {
+        "action": "REQUEST_SAVE",
+        "next_state": "SAVING",
+        "reason_code": "HUMAN_STOP",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": true,
+        "stop_intent": "pause",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T12",
+      "title": "Bot 續跑有人工鎖的工作",
+      "set": {
+        "contract.submitted_by": "bot:demo",
+        "snapshot.state": "PAUSED",
+        "snapshot.human_hold": true,
+        "snapshot.bot_request": "resume"
+      },
+      "expect": {
+        "action": "REJECT_REQUEST",
+        "next_state": "PAUSED",
+        "reason_code": "HUMAN_HOLD",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": true,
+        "stop_intent": "none",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T13",
+      "title": "人工立即停止，有未保存",
+      "set": {
+        "snapshot.human_command": "stop_now",
+        "snapshot.outputs.unsaved": 1
+      },
+      "expect": {
+        "action": "RELEASE",
+        "next_state": "RELEASING",
+        "reason_code": "HUMAN_STOP",
+        "data_at_risk": true,
+        "notify_human": false,
+        "human_hold_after": true,
+        "stop_intent": "pause",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T14a",
+      "title": "本機正常關機、遠端在跑",
+      "set": {
+        "snapshot.host": "shutting_down"
+      },
+      "expect": {
+        "action": "REQUEST_SAVE",
+        "next_state": "SAVING",
+        "reason_code": "HOST_SHUTDOWN",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "pause",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T14b",
+      "title": "關機收尾：釋放已確認",
+      "set": {
+        "snapshot.host": "shutting_down",
+        "snapshot.state": "RELEASING",
+        "snapshot.release_check": "confirmed_zero",
+        "snapshot.stop_intent": "pause"
+      },
+      "expect": {
+        "action": "CLOSE",
+        "next_state": "PAUSED",
+        "reason_code": "RELEASE_CONFIRMED",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "none",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T15a",
+      "title": "開機：先核對",
+      "set": {
+        "snapshot.host": "just_booted"
+      },
+      "expect": {
+        "action": "RECONCILE",
+        "next_state": "RECONCILING",
+        "reason_code": "BOOT_RECONCILE",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "none",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T15b",
+      "title": "開機核對：遠端已釋放，從 step 300 續",
+      "set": {
+        "snapshot.host": "just_booted",
+        "snapshot.state": "RECONCILING",
+        "snapshot.remote": "released",
+        "snapshot.progress.value": 300,
+        "snapshot.checkpoint.step": 300
+      },
+      "expect": {
+        "action": "CLOSE",
+        "next_state": "PAUSED",
+        "reason_code": "RECONCILED_PAUSED",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "none",
+        "from_unit": 300
+      }
+    },
+    {
+      "id": "T16",
+      "title": "開機核對：遠端查不到",
+      "set": {
+        "snapshot.host": "just_booted",
+        "snapshot.state": "RECONCILING",
+        "snapshot.remote": "unreachable",
+        "snapshot.probe.status": "failed",
+        "snapshot.probe.consecutive_failures": 1
+      },
+      "expect": {
+        "action": "MARK_UNKNOWN",
+        "next_state": "UNKNOWN",
+        "reason_code": "PROBE_UNCERTAIN",
+        "data_at_risk": false,
+        "notify_human": true,
+        "human_hold_after": false,
+        "stop_intent": "none",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T17a",
+      "title": "開機核對：批次 23～25 未下載、遠端可取",
+      "set": {
+        "contract.workload_kind": "batch_inference",
+        "contract.job_type": "J1",
+        "snapshot.state": "RECONCILING",
+        "snapshot.remote": "finished",
+        "snapshot.outputs.pending_download": 3,
+        "snapshot.outputs.first_unverified": 23
+      },
+      "expect": {
+        "action": "COLLECT",
+        "next_state": "COLLECTING",
+        "reason_code": "RECONCILED_COLLECT",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "none",
+        "from_unit": 23
+      }
+    },
+    {
+      "id": "T17b",
+      "title": "開機核對：批次 23～25 未下載、遠端已釋放",
+      "set": {
+        "contract.workload_kind": "batch_inference",
+        "contract.job_type": "J1",
+        "snapshot.state": "RECONCILING",
+        "snapshot.remote": "released",
+        "snapshot.outputs.pending_download": 3,
+        "snapshot.outputs.first_unverified": 23
+      },
+      "expect": {
+        "action": "CLOSE",
+        "next_state": "PAUSED",
+        "reason_code": "RECONCILED_PAUSED",
+        "data_at_risk": true,
+        "notify_human": true,
+        "human_hold_after": false,
+        "stop_intent": "none",
+        "from_unit": 23
+      }
+    },
+    {
+      "id": "T18a",
+      "title": "sha256 不符，重試未用完",
+      "set": {
+        "snapshot.state": "COLLECTING",
+        "snapshot.outputs.sha_mismatch": 1,
+        "snapshot.outputs.download_retries_used": 1
+      },
+      "expect": {
+        "action": "COLLECT",
+        "next_state": "COLLECTING",
+        "reason_code": "SHA_MISMATCH",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "none",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T18b",
+      "title": "sha256 不符，重試用完",
+      "set": {
+        "snapshot.state": "COLLECTING",
+        "snapshot.outputs.sha_mismatch": 1,
+        "snapshot.outputs.download_retries_used": 3
+      },
+      "expect": {
+        "action": "ESCALATE",
+        "next_state": "BLOCKED",
+        "reason_code": "SHA_MISMATCH",
+        "data_at_risk": false,
+        "notify_human": true,
+        "human_hold_after": false,
+        "stop_intent": "none",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T19a",
+      "title": "釋放後回查非 0",
+      "set": {
+        "snapshot.state": "RELEASING",
+        "snapshot.release_check": "active_nonzero",
+        "snapshot.stop_intent": "finish"
+      },
+      "expect": {
+        "action": "RECHECK_RELEASE",
+        "next_state": "RELEASE_UNCONFIRMED",
+        "reason_code": "RELEASE_NOT_CONFIRMED",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "finish",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T19b",
+      "title": "釋放回查次數用完",
+      "set": {
+        "snapshot.state": "RELEASE_UNCONFIRMED",
+        "snapshot.release_check": "check_failed",
+        "snapshot.release_retries_used": 3,
+        "snapshot.stop_intent": "finish"
+      },
+      "expect": {
+        "action": "ESCALATE",
+        "next_state": "RELEASE_UNCONFIRMED",
+        "reason_code": "RELEASE_NOT_CONFIRMED",
+        "data_at_risk": false,
+        "notify_human": true,
+        "human_hold_after": false,
+        "stop_intent": "finish",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T20",
+      "title": "佇列空但訓練仍在前進",
+      "set": {
+        "snapshot.queue_empty": true
+      },
+      "expect": {
+        "action": "CONTINUE",
+        "next_state": "RUNNING",
+        "reason_code": "OK",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "none",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "T21",
+      "title": "最長時間到、checkpoint 2 分鐘前確認",
+      "set": {
+        "snapshot.elapsed_minutes": 120,
+        "snapshot.checkpoint.confirmed_at": 998
+      },
+      "expect": {
+        "action": "COLLECT",
+        "next_state": "COLLECTING",
+        "reason_code": "MAX_TIME",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "pause",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "U01",
+      "title": "狀態不明時撞硬上限且寬限用完",
+      "set": {
+        "snapshot.state": "UNKNOWN",
+        "snapshot.probe.status": "failed",
+        "snapshot.probe.consecutive_failures": 4,
+        "snapshot.unknown_since": 995,
+        "snapshot.cu_used": 11.1,
+        "snapshot.limit_hit_at": 990
+      },
+      "expect": {
+        "action": "ESCALATE",
+        "next_state": "BLOCKED",
+        "reason_code": "CU_HARD_CAP_UNKNOWN",
+        "data_at_risk": false,
+        "notify_human": true,
+        "human_hold_after": false,
+        "stop_intent": "none",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "P01",
+      "title": "Bot 請求暫停人提交的工作",
+      "set": {
+        "snapshot.bot_request": "pause"
+      },
+      "expect": {
+        "action": "REQUEST_SAVE",
+        "next_state": "SAVING",
+        "reason_code": "BOT_PAUSE",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": false,
+        "stop_intent": "pause",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "P02",
+      "title": "人與 Bot 同時下令，以人為準",
+      "set": {
+        "contract.submitted_by": "bot:demo",
+        "snapshot.human_command": "stop_after_save",
+        "snapshot.bot_request": "resume"
+      },
+      "expect": {
+        "action": "REQUEST_SAVE",
+        "next_state": "SAVING",
+        "reason_code": "HUMAN_STOP",
+        "data_at_risk": false,
+        "notify_human": false,
+        "human_hold_after": true,
+        "stop_intent": "pause",
+        "from_unit": null
+      }
+    },
+    {
+      "id": "E01",
+      "title": "未知狀態值",
+      "set": {
+        "snapshot.state": "IDLE"
+      },
+      "expect": {
+        "raises": "ValueError"
+      }
+    },
+    {
+      "id": "E02",
+      "title": "未知衝突模式",
+      "set": {
+        "policy.budget_conflict_mode": "D"
+      },
+      "expect": {
+        "raises": "ValueError"
+      }
+    }
+  ]
+}
