@@ -103,6 +103,19 @@
       "check_sha256": "c790fe46bd865083e4bbac4aa230dd2ea5b3c97c96b88eb905740fa55341e698",
       "spec_path": "specs/008-initials.md",
       "spec_row_sha256": "8eb94f1194ef36dc3e17a2f776543fb465ced95637a60f496e2058ea09c8b377"
+    },
+    "010": {
+      "acceptances": [
+        {
+          "check_sha256": "b2eb292d2b4c4443282c0684c94e5cba15c34ab61490ed317501cbb617fba749",
+          "reason": "initial acceptance; pin records this gate and spec row and is not recomputed from a later live tree",
+          "spec_row_sha256": "696b5108e322eff7e8880e3e3a2978eaf380c3a4a516b458dcad509989480c70"
+        }
+      ],
+      "check_path": "tools/check_010.py",
+      "check_sha256": "b2eb292d2b4c4443282c0684c94e5cba15c34ab61490ed317501cbb617fba749",
+      "spec_path": "specs/010-workbench-stop-policy.md",
+      "spec_row_sha256": "696b5108e322eff7e8880e3e3a2978eaf380c3a4a516b458dcad509989480c70"
     }
   },
   "schema": 1
