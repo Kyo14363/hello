@@ -9,13 +9,13 @@
 | expected_paths | `specs/010-workbench-stop-policy.md`、`tools/check_010.py`、`workbench/stop_policy.py`、`workbench/tests/test_stop_policy.py`、`workbench/fixtures/scenarios.json` |
 | Definition of done | 見下方「Definition of done」各條，全部可由程式判定 |
 
-> ⚠ 本檔刻意**不放** `expected_paths` 表格列。`tools/ci_run_gates.py` 的 `discover()` 一看到 spec 表格裡有 `expected_paths` 列，就要求 `tools/check_010.py` 已存在，否則 `CI GATE ERROR`（exit 2）。本 PR 不含閘門，所以 `expected_paths` 先寫在下面的清單；**閘門 PR（Gpt小豬）要把它移進上方表格成一列**，並在 lock 記 010 的 initial acceptance。做法與 008 相同（008 spec PR #62 → 閘門 PR #63 → 實作 PR #65）。
+> 本檔的 `expected_paths` 已在閘門 PR #68 移進上方表格，以表格那一列為準。做法與 008 相同：spec 先合、閘門 PR 再加表格列與 lock（008 spec PR #62 → 閘門 PR #63 → 實作 PR #65）。
 
 本檔所有 CU（運算單位）、時間與步數都是**假資料**，不代表任何真實額度。
 
-## expected_paths（閘門 PR 時移進表格）
+## expected_paths（以上方表格為準）
 
-閘門 PR 在上方表格加一列：第一格寫 `expected_paths`，第二格依序列出下面五個路徑，各自用反引號包住、以「、」分隔（與 007、008 同格式）。`ci_run_gates.py` 以完全相同的字串比對，不支援萬用字元。
+上方表格的 `expected_paths` 列依序列出五個路徑，各自用反引號包住、以「、」分隔（與 007、008 同格式）。`ci_run_gates.py` 以完全相同的字串比對，不支援萬用字元。
 
 實作 PR 的 diff 只能落在後三個檔。**不需要** `workbench/__init__.py` 或 `workbench/tests/__init__.py`：測試指令用 `PYTHONPATH=workbench` 加 `unittest discover -s workbench/tests`，與 007、008 的 `src/`、`tests/` 一樣沒有套件檔。多加任何檔都會讓 CI `scope: FAIL`。
 
