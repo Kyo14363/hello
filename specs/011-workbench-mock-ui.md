@@ -6,23 +6,16 @@
 | Repo | https://github.com/Kyo14363/hello （程式放子目錄 `workbench/`） |
 | Upstream | 009 `specs/009-local-workbench.md` 第 2、5、6 節與第 7 節切片 ③；010 `workbench/stop_policy.py` 的 `decide`（已合併）。與 001～008 互不相依，不 import `src/` 任何模組 |
 | Implementer | spec **Clau小羊**；閘門與鎖 **Gpt小豬**；實作 **Gemi小狗**（Cursor 雲端 agent）；驗收與合併 **Gro小貓** |
+| expected_paths | `specs/011-workbench-mock-ui.md`、`tools/check_011.py`、`workbench/ui/index.html`、`workbench/ui/app.js`、`workbench/ui/style.css`、`workbench/ui/fixtures/jobs.json`、`workbench/serve_local.py` |
 | Definition of done | 見下方「Definition of done」各條，全部可由程式判定 |
 
-> ⚠ 本檔刻意**不放** `expected_paths` 表格列，閘門 PR 才把下方清單移進上方表格。做法與 008、010 相同（010：spec PR #67 → 閘門 PR #68 → 實作 PR #69）。
+> `expected_paths` 已在上方表格。做法與 008、010 相同（010：spec PR #67 → 閘門 PR #68 → 實作 PR #69）。
 
 本檔所有 CU（運算單位）、時間、步數與雜湊都是**假資料**，不代表任何真實額度或真實檔案。
 
-## expected_paths（閘門 PR 時移進表格）
+## expected_paths
 
-閘門 PR 在上方表格加一列：第一格寫 `expected_paths`，第二格依序列出下面七個路徑，各自用反引號包住、以「、」分隔（與 007、008、010 同格式）。`ci_run_gates.py` 以完全相同的字串比對，不支援萬用字元。
-
-1. `specs/011-workbench-mock-ui.md`
-2. `tools/check_011.py`
-3. `workbench/ui/index.html`
-4. `workbench/ui/app.js`
-5. `workbench/ui/style.css`
-6. `workbench/ui/fixtures/jobs.json`
-7. `workbench/serve_local.py`
+上方表格的 `expected_paths` 列就是這七個路徑，各自用反引號包住、以「、」分隔（與 007、008、010 同格式）。`ci_run_gates.py` 以完全相同的字串比對，不支援萬用字元。
 
 實作 PR 的 diff 只能落在後五個檔。**不改** 010 的三個檔（`workbench/stop_policy.py`、`workbench/tests/test_stop_policy.py`、`workbench/fixtures/scenarios.json`），不加 `__init__.py`、不加測試檔（行為由 `check_011.py` 直接驗）。多加任何檔都會讓 CI `scope: FAIL`。
 
@@ -228,7 +221,7 @@ body 鍵：`action`（必填）、`caller`（必填，`bot:` 開頭）、`job_id
 
 `tools/ci_run_gates.py` 用**整張 PR 的 diff** 判範圍。
 
-- **PR A（本 PR，spec only）**：只新增 `specs/011-workbench-mock-ui.md`。spec 沒有 `expected_paths` 表格列 → `discover()` 略過本檔；diff 不碰任何工單的 `expected_paths` → regression 模式跑 001～008 與 010 全部閘門，應與 main 同為綠。lock 不動。
+- **PR A（spec only，已合併）**：只新增 `specs/011-workbench-mock-ui.md`。當時表格還沒有 `expected_paths` 列，所以 `discover()` 略過本檔；diff 不碰任何工單的 `expected_paths` → regression 模式跑 001～008 與 010 全部閘門，應與 main 同為綠。lock 不動。
 - **PR B（閘門＋鎖，Gpt小豬）**：把 expected_paths 移進表格、加 `tools/check_011.py`、lock 加 011（三者同一張 PR）。預期選到 011、scope／lock PASS、`check_011` 紅（尚未實作），回歸項（`check_010`）綠。
 - **PR C（實作，Gemi小狗，PR B 合進 main 後才開）**：只新增五個檔（`workbench/serve_local.py` 與 `workbench/ui/` 下四檔）。只 `git add` 這五檔並設 `PYTHONDONTWRITEBYTECODE=1`，避免 `__pycache__` 進 diff 造成 `scope: FAIL`。證據貼 PR 留言，不進 diff。
 
