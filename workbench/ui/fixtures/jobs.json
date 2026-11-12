@@ -1,0 +1,1424 @@
+{
+  "schema": 1,
+  "notice": "示意數字，非真實額度",
+  "host": "online",
+  "jobs": [
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "RUNNING",
+        "probe": {
+          "status": "ok",
+          "consecutive_failures": 0
+        },
+        "progress": {
+          "value": 120,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 120,
+          "confirmed": true,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 0,
+          "pending_download": 0,
+          "first_unverified": null,
+          "sha_mismatch": 0,
+          "download_retries_used": 0
+        },
+        "cu_used": 5,
+        "elapsed_minutes": 60,
+        "limit_hit_at": null,
+        "unknown_since": null,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": false,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "running",
+        "release_check": "not_started",
+        "release_retries_used": 0,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-J3-001",
+        "template_id": "tpl-demo-train",
+        "job_type": "J3",
+        "workload_kind": "training",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "human"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "夜間示範訓練",
+        "progress_total": 200,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 2,
+        "note": "",
+        "files": [
+          {
+            "name": "weights-step.pt",
+            "size_bytes": 4096,
+            "sha256_8": "a1b2c3d4",
+            "verify": "verified",
+            "landed": true
+          }
+        ],
+        "timeline": [
+          {
+            "at": 860,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "H"
+          },
+          {
+            "at": 920,
+            "from": "REGISTERED",
+            "to": "QUEUED",
+            "by": "S"
+          },
+          {
+            "at": 990,
+            "from": "QUEUED",
+            "to": "RUNNING",
+            "by": "S"
+          }
+        ]
+      }
+    },
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "REGISTERED",
+        "probe": {
+          "status": "ok",
+          "consecutive_failures": 0
+        },
+        "progress": {
+          "value": 0,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 0,
+          "confirmed": false,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 0,
+          "pending_download": 0,
+          "first_unverified": null,
+          "sha_mismatch": 0,
+          "download_retries_used": 0
+        },
+        "cu_used": 0,
+        "elapsed_minutes": 0,
+        "limit_hit_at": null,
+        "unknown_since": null,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": false,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "released",
+        "release_check": "not_started",
+        "release_retries_used": 0,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-J1-002",
+        "template_id": "tpl-demo-batch",
+        "job_type": "J1",
+        "workload_kind": "batch_inference",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "human"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "已登記的批次",
+        "progress_total": 40,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 1,
+        "note": "",
+        "files": [
+          {
+            "name": "batch-000.bin",
+            "size_bytes": 128,
+            "sha256_8": "b2c3d4e5",
+            "verify": "unverified",
+            "landed": false
+          }
+        ],
+        "timeline": [
+          {
+            "at": 1000,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "H"
+          }
+        ]
+      }
+    },
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "QUEUED",
+        "probe": {
+          "status": "ok",
+          "consecutive_failures": 0
+        },
+        "progress": {
+          "value": 0,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 0,
+          "confirmed": false,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 0,
+          "pending_download": 0,
+          "first_unverified": null,
+          "sha_mismatch": 0,
+          "download_retries_used": 0
+        },
+        "cu_used": 0,
+        "elapsed_minutes": 5,
+        "limit_hit_at": null,
+        "unknown_since": null,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": false,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "released",
+        "release_check": "not_started",
+        "release_retries_used": 0,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-WAN-003",
+        "template_id": "tpl-demo-wan",
+        "job_type": "WAN",
+        "workload_kind": "training",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "bot:demo"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "排隊中的影片",
+        "progress_total": 48,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 1,
+        "note": "",
+        "files": [
+          {
+            "name": "clip-00.mp4",
+            "size_bytes": 2048,
+            "sha256_8": "c3d4e5f6",
+            "verify": "unverified",
+            "landed": false
+          }
+        ],
+        "timeline": [
+          {
+            "at": 940,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "B"
+          },
+          {
+            "at": 970,
+            "from": "REGISTERED",
+            "to": "QUEUED",
+            "by": "S"
+          }
+        ]
+      }
+    },
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "STARTING",
+        "probe": {
+          "status": "ok",
+          "consecutive_failures": 0
+        },
+        "progress": {
+          "value": 4,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 0,
+          "confirmed": false,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 0,
+          "pending_download": 0,
+          "first_unverified": null,
+          "sha_mismatch": 0,
+          "download_retries_used": 0
+        },
+        "cu_used": 1,
+        "elapsed_minutes": 8,
+        "limit_hit_at": null,
+        "unknown_since": null,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": false,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "running",
+        "release_check": "not_started",
+        "release_retries_used": 0,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-J3-004",
+        "template_id": "tpl-demo-train",
+        "job_type": "J3",
+        "workload_kind": "training",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "human"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "正在準備權重",
+        "progress_total": 200,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 1,
+        "note": "",
+        "files": [
+          {
+            "name": "setup-log.txt",
+            "size_bytes": 256,
+            "sha256_8": "d4e5f6a7",
+            "verify": "verified",
+            "landed": true
+          }
+        ],
+        "timeline": [
+          {
+            "at": 900,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "H"
+          },
+          {
+            "at": 980,
+            "from": "QUEUED",
+            "to": "STARTING",
+            "by": "S"
+          }
+        ]
+      }
+    },
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "SAVING",
+        "probe": {
+          "status": "ok",
+          "consecutive_failures": 0
+        },
+        "progress": {
+          "value": 18,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 18,
+          "confirmed": false,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 1,
+          "pending_download": 0,
+          "first_unverified": null,
+          "sha_mismatch": 0,
+          "download_retries_used": 0
+        },
+        "cu_used": 3,
+        "elapsed_minutes": 30,
+        "limit_hit_at": null,
+        "unknown_since": null,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": false,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "running",
+        "release_check": "not_started",
+        "release_retries_used": 0,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-J1-005",
+        "template_id": "tpl-demo-batch",
+        "job_type": "J1",
+        "workload_kind": "batch_inference",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "human"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "檢查點保存中",
+        "progress_total": 40,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 1,
+        "note": "",
+        "files": [
+          {
+            "name": "batch-018.bin",
+            "size_bytes": 1024,
+            "sha256_8": "e5f6a7b8",
+            "verify": "verified",
+            "landed": true
+          }
+        ],
+        "timeline": [
+          {
+            "at": 880,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "H"
+          },
+          {
+            "at": 960,
+            "from": "RUNNING",
+            "to": "SAVING",
+            "by": "S"
+          }
+        ]
+      }
+    },
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "COLLECTING",
+        "probe": {
+          "status": "ok",
+          "consecutive_failures": 0
+        },
+        "progress": {
+          "value": 36,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 36,
+          "confirmed": true,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 0,
+          "pending_download": 2,
+          "first_unverified": 23,
+          "sha_mismatch": 0,
+          "download_retries_used": 0
+        },
+        "cu_used": 11,
+        "elapsed_minutes": 70,
+        "limit_hit_at": null,
+        "unknown_since": null,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": false,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "finished",
+        "release_check": "not_started",
+        "release_retries_used": 0,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-WAN-006",
+        "template_id": "tpl-demo-wan",
+        "job_type": "WAN",
+        "workload_kind": "training",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "human"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "收回未落地片段",
+        "progress_total": 48,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 1,
+        "note": "",
+        "files": [
+          {
+            "name": "clip-22.mp4",
+            "size_bytes": 3072,
+            "sha256_8": "f6a7b8c9",
+            "verify": "unverified",
+            "landed": false
+          }
+        ],
+        "timeline": [
+          {
+            "at": 800,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "H"
+          },
+          {
+            "at": 990,
+            "from": "SAVING",
+            "to": "COLLECTING",
+            "by": "S"
+          }
+        ]
+      }
+    },
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "RELEASING",
+        "probe": {
+          "status": "ok",
+          "consecutive_failures": 0
+        },
+        "progress": {
+          "value": 200,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 200,
+          "confirmed": true,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 0,
+          "pending_download": 0,
+          "first_unverified": null,
+          "sha_mismatch": 0,
+          "download_retries_used": 0
+        },
+        "cu_used": 10,
+        "elapsed_minutes": 90,
+        "limit_hit_at": null,
+        "unknown_since": null,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": false,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "finished",
+        "release_check": "not_started",
+        "release_retries_used": 0,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-J3-007",
+        "template_id": "tpl-demo-train",
+        "job_type": "J3",
+        "workload_kind": "training",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "human"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "資源釋放中",
+        "progress_total": 200,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 4,
+        "note": "",
+        "files": [
+          {
+            "name": "weights-final.pt",
+            "size_bytes": 4096,
+            "sha256_8": "0123abcd",
+            "verify": "verified",
+            "landed": true
+          }
+        ],
+        "timeline": [
+          {
+            "at": 700,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "H"
+          },
+          {
+            "at": 980,
+            "from": "COLLECTING",
+            "to": "RELEASING",
+            "by": "S"
+          }
+        ]
+      }
+    },
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "RELEASE_UNCONFIRMED",
+        "probe": {
+          "status": "ok",
+          "consecutive_failures": 0
+        },
+        "progress": {
+          "value": 40,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 40,
+          "confirmed": true,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 0,
+          "pending_download": 0,
+          "first_unverified": null,
+          "sha_mismatch": 0,
+          "download_retries_used": 0
+        },
+        "cu_used": 6,
+        "elapsed_minutes": 80,
+        "limit_hit_at": null,
+        "unknown_since": null,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": false,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "finished",
+        "release_check": "active_nonzero",
+        "release_retries_used": 1,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-J1-008",
+        "template_id": "tpl-demo-batch",
+        "job_type": "J1",
+        "workload_kind": "batch_inference",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "human"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "釋放回查仍有活動",
+        "progress_total": 40,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 1,
+        "note": "回查仍看到使用中的資源",
+        "files": [
+          {
+            "name": "batch-040.bin",
+            "size_bytes": 2048,
+            "sha256_8": "1234abcd",
+            "verify": "verified",
+            "landed": true
+          }
+        ],
+        "timeline": [
+          {
+            "at": 760,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "H"
+          },
+          {
+            "at": 970,
+            "from": "RELEASING",
+            "to": "RELEASE_UNCONFIRMED",
+            "by": "S"
+          }
+        ]
+      }
+    },
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "PAUSED",
+        "probe": {
+          "status": "ok",
+          "consecutive_failures": 0
+        },
+        "progress": {
+          "value": 30,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 30,
+          "confirmed": true,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 0,
+          "pending_download": 0,
+          "first_unverified": null,
+          "sha_mismatch": 0,
+          "download_retries_used": 0
+        },
+        "cu_used": 4,
+        "elapsed_minutes": 40,
+        "limit_hit_at": null,
+        "unknown_since": null,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": true,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "released",
+        "release_check": "confirmed_zero",
+        "release_retries_used": 0,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-WAN-009",
+        "template_id": "tpl-demo-wan",
+        "job_type": "WAN",
+        "workload_kind": "training",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "bot:demo"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "被人工暫停的影片",
+        "progress_total": 48,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 1,
+        "note": "",
+        "files": [
+          {
+            "name": "clip-30.mp4",
+            "size_bytes": 2560,
+            "sha256_8": "2345abcd",
+            "verify": "verified",
+            "landed": true
+          }
+        ],
+        "timeline": [
+          {
+            "at": 820,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "B"
+          },
+          {
+            "at": 960,
+            "from": "SAVING",
+            "to": "PAUSED",
+            "by": "H"
+          }
+        ]
+      }
+    },
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "RECONCILING",
+        "probe": {
+          "status": "ok",
+          "consecutive_failures": 0
+        },
+        "progress": {
+          "value": 150,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 150,
+          "confirmed": true,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 0,
+          "pending_download": 0,
+          "first_unverified": null,
+          "sha_mismatch": 0,
+          "download_retries_used": 0
+        },
+        "cu_used": 7,
+        "elapsed_minutes": 50,
+        "limit_hit_at": null,
+        "unknown_since": null,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": false,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "running",
+        "release_check": "not_started",
+        "release_retries_used": 0,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-J3-010",
+        "template_id": "tpl-demo-train",
+        "job_type": "J3",
+        "workload_kind": "training",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "human"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "開機後核對訓練",
+        "progress_total": 200,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 1,
+        "note": "",
+        "files": [
+          {
+            "name": "weights-step.pt",
+            "size_bytes": 4096,
+            "sha256_8": "3456abcd",
+            "verify": "verified",
+            "landed": true
+          }
+        ],
+        "timeline": [
+          {
+            "at": 600,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "H"
+          },
+          {
+            "at": 995,
+            "from": "RUNNING",
+            "to": "RECONCILING",
+            "by": "S"
+          }
+        ]
+      }
+    },
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "UNKNOWN",
+        "probe": {
+          "status": "failed",
+          "consecutive_failures": 2
+        },
+        "progress": {
+          "value": 22,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 22,
+          "confirmed": true,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 0,
+          "pending_download": 0,
+          "first_unverified": null,
+          "sha_mismatch": 0,
+          "download_retries_used": 0
+        },
+        "cu_used": 4,
+        "elapsed_minutes": 45,
+        "limit_hit_at": null,
+        "unknown_since": 980,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": false,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "unreachable",
+        "release_check": "not_started",
+        "release_retries_used": 0,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-J1-011",
+        "template_id": "tpl-demo-batch",
+        "job_type": "J1",
+        "workload_kind": "batch_inference",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "human"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "查詢沒有回應的批次",
+        "progress_total": 40,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 1,
+        "note": "連續查不到這筆工作的狀態",
+        "files": [
+          {
+            "name": "batch-022.bin",
+            "size_bytes": 1536,
+            "sha256_8": "4567abcd",
+            "verify": "verified",
+            "landed": true
+          }
+        ],
+        "timeline": [
+          {
+            "at": 840,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "H"
+          },
+          {
+            "at": 990,
+            "from": "RUNNING",
+            "to": "UNKNOWN",
+            "by": "S"
+          }
+        ]
+      }
+    },
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "BLOCKED",
+        "probe": {
+          "status": "ok",
+          "consecutive_failures": 0
+        },
+        "progress": {
+          "value": 23,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 23,
+          "confirmed": true,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 0,
+          "pending_download": 0,
+          "first_unverified": null,
+          "sha_mismatch": 1,
+          "download_retries_used": 3
+        },
+        "cu_used": 6,
+        "elapsed_minutes": 55,
+        "limit_hit_at": null,
+        "unknown_since": null,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": false,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "finished",
+        "release_check": "not_started",
+        "release_retries_used": 0,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-WAN-012",
+        "template_id": "tpl-demo-wan",
+        "job_type": "WAN",
+        "workload_kind": "training",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "human"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "雜湊不符的影片",
+        "progress_total": 48,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 1,
+        "note": "第 23 批雜湊不符，已重試 3 次",
+        "files": [
+          {
+            "name": "clip-22.mp4",
+            "size_bytes": 3072,
+            "sha256_8": "5678abcd",
+            "verify": "verified",
+            "landed": true
+          },
+          {
+            "name": "batch-023.bin",
+            "size_bytes": 4096,
+            "sha256_8": "deadbeef",
+            "verify": "mismatch",
+            "landed": false
+          }
+        ],
+        "timeline": [
+          {
+            "at": 780,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "H"
+          },
+          {
+            "at": 990,
+            "from": "COLLECTING",
+            "to": "BLOCKED",
+            "by": "S"
+          }
+        ]
+      }
+    },
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "DONE",
+        "probe": {
+          "status": "ok",
+          "consecutive_failures": 0
+        },
+        "progress": {
+          "value": 200,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 200,
+          "confirmed": true,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 0,
+          "pending_download": 0,
+          "first_unverified": null,
+          "sha_mismatch": 0,
+          "download_retries_used": 0
+        },
+        "cu_used": 8,
+        "elapsed_minutes": 100,
+        "limit_hit_at": null,
+        "unknown_since": null,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": false,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "released",
+        "release_check": "confirmed_zero",
+        "release_retries_used": 0,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-J3-013",
+        "template_id": "tpl-demo-train",
+        "job_type": "J3",
+        "workload_kind": "training",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "human"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "已完成的訓練",
+        "progress_total": 200,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 1,
+        "note": "",
+        "files": [
+          {
+            "name": "weights-final.pt",
+            "size_bytes": 4096,
+            "sha256_8": "6789abcd",
+            "verify": "verified",
+            "landed": true
+          }
+        ],
+        "timeline": [
+          {
+            "at": 500,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "H"
+          },
+          {
+            "at": 980,
+            "from": "RELEASING",
+            "to": "DONE",
+            "by": "S"
+          }
+        ]
+      }
+    },
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "FAILED",
+        "probe": {
+          "status": "ok",
+          "consecutive_failures": 0
+        },
+        "progress": {
+          "value": 11,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 11,
+          "confirmed": true,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 0,
+          "pending_download": 0,
+          "first_unverified": null,
+          "sha_mismatch": 0,
+          "download_retries_used": 0
+        },
+        "cu_used": 3,
+        "elapsed_minutes": 35,
+        "limit_hit_at": null,
+        "unknown_since": null,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": false,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "released",
+        "release_check": "confirmed_zero",
+        "release_retries_used": 0,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-J1-014",
+        "template_id": "tpl-demo-batch",
+        "job_type": "J1",
+        "workload_kind": "batch_inference",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "human"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "失敗的批次",
+        "progress_total": 40,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 1,
+        "note": "",
+        "files": [
+          {
+            "name": "batch-011.bin",
+            "size_bytes": 512,
+            "sha256_8": "7890abcd",
+            "verify": "verified",
+            "landed": true
+          }
+        ],
+        "timeline": [
+          {
+            "at": 880,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "H"
+          },
+          {
+            "at": 970,
+            "from": "COLLECTING",
+            "to": "FAILED",
+            "by": "S"
+          }
+        ]
+      }
+    },
+    {
+      "now": 1000,
+      "snapshot": {
+        "state": "CANCELLED",
+        "probe": {
+          "status": "ok",
+          "consecutive_failures": 0
+        },
+        "progress": {
+          "value": 0,
+          "last_advanced_at": 999
+        },
+        "checkpoint": {
+          "step": 0,
+          "confirmed": false,
+          "confirmed_at": 990
+        },
+        "outputs": {
+          "unsaved": 0,
+          "pending_download": 0,
+          "first_unverified": null,
+          "sha_mismatch": 0,
+          "download_retries_used": 0
+        },
+        "cu_used": 0,
+        "elapsed_minutes": 2,
+        "limit_hit_at": null,
+        "unknown_since": null,
+        "human_command": "none",
+        "bot_request": "none",
+        "human_hold": false,
+        "stop_intent": "none",
+        "host": "online",
+        "remote": "released",
+        "release_check": "not_started",
+        "release_retries_used": 0,
+        "done_signal": false,
+        "queue_empty": false
+      },
+      "contract": {
+        "job_id": "demo-WAN-015",
+        "template_id": "tpl-demo-wan",
+        "job_type": "WAN",
+        "workload_kind": "training",
+        "cu_cap": 10,
+        "cu_soft_ratio": 0.8,
+        "max_minutes": 120,
+        "heartbeat": {
+          "stall_minutes": 20
+        },
+        "on_host_offline": "pause_safely",
+        "submitted_by": "bot:demo"
+      },
+      "policy": {
+        "probe_confirm_count": 3,
+        "unknown_alert_minutes": 30,
+        "budget_conflict_mode": "C",
+        "grace_cu_ratio": 0.1,
+        "grace_minutes": 15,
+        "save_before_max_minutes": 10,
+        "download_retry_limit": 3,
+        "release_recheck_limit": 3
+      },
+      "display": {
+        "title": "啟動前取消的影片",
+        "progress_total": 48,
+        "cu_balance": 100,
+        "cu_rate_per_hour": 0,
+        "note": "",
+        "files": [
+          {
+            "name": "clip-plan.txt",
+            "size_bytes": 64,
+            "sha256_8": "89abcdef",
+            "verify": "unverified",
+            "landed": false
+          }
+        ],
+        "timeline": [
+          {
+            "at": 990,
+            "from": null,
+            "to": "REGISTERED",
+            "by": "B"
+          },
+          {
+            "at": 998,
+            "from": "REGISTERED",
+            "to": "CANCELLED",
+            "by": "H"
+          }
+        ]
+      }
+    }
+  ]
+}

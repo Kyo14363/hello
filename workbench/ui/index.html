@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>工作台假資料原型</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page">
+    <header class="mast">
+      <div>
+        <p class="eyebrow">切片 ③ · 只使用假資料</p>
+        <h1>工作台</h1>
+      </div>
+      <p id="flash" class="flash"></p>
+    </header>
+
+    <section id="section-onboarding">
+      <h2>首次引導</h2>
+      <ol>
+        <li>看列表，點一列打開那筆任務。</li>
+        <li>看阻塞原因，需要你處理時會寫在那一區。</li>
+        <li>怎麼停：優先保存後停止；立即停止要再確認。</li>
+      </ol>
+    </section>
+
+    <section id="section-host">
+      <h2>本機狀態</h2>
+      <p id="host-now" class="host-now">讀取中</p>
+      <div class="button-row">
+        <button type="button" id="btn-host-online">改為在線</button>
+        <button type="button" id="btn-host-shut">改為即將關機</button>
+        <button type="button" id="btn-host-boot">改為剛開機</button>
+        <button type="button" id="btn-reset">重置假資料</button>
+      </div>
+      <h3>關機前需先收尾</h3>
+      <ul id="wind-list"></ul>
+    </section>
+
+    <div class="columns">
+      <section id="section-job-list">
+        <h2>任務列表</h2>
+        <div id="job-rows"></div>
+      </section>
+
+      <div class="detail-col">
+        <section id="section-job-detail">
+          <h2>任務詳情</h2>
+          <div id="detail-body">
+            <p class="muted">從左側列表點一筆任務。</p>
+          </div>
+          <div class="button-row">
+            <button type="button" id="btn-tick">推進一步</button>
+            <button type="button" id="btn-pause">暫停</button>
+            <button type="button" id="btn-resume">續跑</button>
+          </div>
+        </section>
+
+        <section id="section-blocker">
+          <h2>阻塞原因</h2>
+          <div id="blocker-body"></div>
+        </section>
+
+        <section id="section-cu">
+          <h2>CU 面板</h2>
+          <p class="notice">示意數字，非真實額度</p>
+          <div id="cu-body"></div>
+        </section>
+
+        <section id="section-outputs">
+          <h2>產出與雜湊</h2>
+          <div id="outputs-body"></div>
+        </section>
+
+        <section id="section-release">
+          <h2>釋放狀態</h2>
+          <div id="release-body"></div>
+        </section>
+
+        <section id="section-stop">
+          <h2>停止</h2>
+          <div class="button-row">
+            <button type="button" id="btn-stop-after-save">保存後停止（建議）</button>
+            <button type="button" id="btn-stop-now">立即停止（可能遺失未保存產出）</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
