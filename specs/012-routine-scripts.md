@@ -10,7 +10,7 @@
 
 > ⚠ 本檔刻意**不放** `expected_paths` 表格列，閘門 PR 才把下方清單移進上方表格。做法與 008、010、011 相同（011：spec PR #70 → 閘門 PR #72 → 實作 PR #73）。
 
-本單兩支腳本只做「讀」：一支讀一個公開 changelog 網頁比版號，一支看某資料夾裡今天的兩個檔在不在。**接不接上例行、什麼時候接，由各例行的負責 Bot 在本單合併後自己決定，不在本單範圍。** 本檔所有網址、版號、日期、條目文字都是**假資料**。
+本單兩支腳本只做「讀」：一支讀一個公開 changelog 網頁比版號，一支依呼叫端給的樣板，看某資料夾裡今天的檔在不在。**接不接上例行、什麼時候接，由各例行的負責 Bot 在本單合併後自己決定，不在本單範圍。** 本檔所有網址、版號、日期、條目文字都是**假資料**。
 
 ## expected_paths（閘門 PR 時移進表格）
 
@@ -29,7 +29,7 @@
 ## 要做的事
 
 1. 新增 `routines/changelog_version_check.py`（腳本 A）：讀一個 changelog 網頁，找出最新版號、日期與條目，跟呼叫端給的「上一版號」比，印一行 JSON（見 A1～A6）。
-2. 新增 `routines/daily_file_presence.py`（腳本 B）：在 `--root` 底下，依固定順序看今天的主檔、備檔在不在，印一行 JSON（見 B1～B5）。
+2. 新增 `routines/daily_file_presence.py`（腳本 B）：在 `--root` 底下，依呼叫端用 `--pattern` 給的順序，看今天的每個檔在不在，印一行 JSON（見 B1～B5）。腳本**沒有任何預設樣板**，真實資料夾結構只存在呼叫端，不進 repo。
 3. 新增 `routines/fixtures/changelog_sample.html`：自己寫的假 changelog 頁，內容照 A3（**不得**複製任何真實網站的文字）。
 4. 新增兩個測試檔（見 T1）。
 
@@ -141,26 +141,27 @@ JSON 鍵**剛好** `version`、`date`、`changed`、`new_entries`、`error` 五�
 |---|---|---|
 | `--root DIR` | 是 | 要看的根目錄。不存在或不是目錄 → exit 2，`error` 以 `bad_root` 開頭 |
 | `--date YYYY-MM-DD` | 否 | 預設＝執行當下的 JST（UTC+9）日期。格式錯或不存在的日期 → exit 2，`error` 以 `bad_date` 開頭 |
-| `--primary-pattern P` | 否，預設 `X/_horn/reddit-{date}.json` | 主檔相對路徑樣板 |
-| `--fallback-pattern P` | 否，預設 `Reddit/reddit_stocks_{yyyymmdd}.md` | 備檔相對路徑樣板 |
+| `--pattern P` | 是，可重複，至少 1 個 | 相對 `--root` 的路徑樣板。**沒有預設值**；給幾個就查幾個，順序＝參數出現順序（第一個就是呼叫端的首選檔）。一個都沒給 → argparse 用法錯誤 exit 2 |
 
-- 樣板只認兩個佔位：`{date}`（`YYYY-MM-DD`）、`{yyyymmdd}`（`YYYYMMDD`）。分隔符一律寫 `/`，腳本再轉成作業系統路徑。
-- 樣板有其他佔位或括號不成對、是絕對路徑、含 `..` 段、含 `\`、或展開後是空字串 → exit 2，`error` 以 `bad_pattern` 開頭。
+- 樣板只認兩個佔位：`{YYYY-MM-DD}`（例如 `2026-01-20`）、`{YYYYMMDD}`（例如 `20260120`），用字串取代展開，不用 `str.format`。分隔符一律寫 `/`，腳本再轉成作業系統路徑。
+- 本檔、測試與閘門的範例樣板一律用中性名稱，例如 `a/report-{YYYY-MM-DD}.json`、`b/report_{YYYYMMDD}.md`。
+- 樣板有其他佔位（含小寫 `{date}`）或括號不成對、是絕對路徑、含 `..` 段、含 `\`、或展開後是空字串 → exit 2，`error` 以 `bad_pattern` 開頭。
 - JST 用固定位移 `datetime.timezone(datetime.timedelta(hours=9))`，**不用** `zoneinfo`（Windows 沒裝 tzdata 也要能跑），不讀 `TZ` 環境變數。
 
 ### B2 檢查
 
-- 固定順序：先主檔、再備檔，各只檢查**一個**路徑，就是用 `--date` 展開後的那一個。不找前一天、不找相近檔名、不列目錄。
+- 固定順序：照 `--pattern` 的順序，每個樣板只檢查**一個**路徑，就是用 `--date` 展開後的那一個。不找前一天、不找相近檔名、不列目錄。
 - 「在」＝該路徑是一般檔案（`is_file()` 為真）；同名資料夾算「不在」。
 - `mtime`：`os.stat(...).st_mtime` 換成 JST 的 ISO 8601，到秒，帶 `+09:00`（例如 `2026-11-17T18:15:02+09:00`）；不在時為 `null`。不管執行機器的時區設定，一律輸出 `+09:00`。
 
 ### B3 結果
 
-JSON 鍵**剛好** `date`、`files`、`status`、`missing`、`error` 五個。
+JSON 鍵**剛好** `date`、`files`、`status`、`first_present`、`missing`、`error` 六個。
 
 - `date`：用到的日期字串 `YYYY-MM-DD`（exit 2 時可為 `null`）。
-- `files`：清單，剛好兩個元素，順序主檔在前；每個元素鍵剛好 `role`（`"primary"`／`"fallback"`）、`path`（相對 `--root`、用 `/` 分隔的展開後路徑）、`exists`（bool）、`mtime`（字串或 `null`）。exit 2 時為 `[]`。
-- `status`：`"both"`／`"primary_only"`／`"fallback_only"`／`"missing"`；exit 2 時為 `"error"`。
+- `files`：清單，元素數＝`--pattern` 個數，順序同參數；每個元素鍵剛好 `order`（從 1 起算的整數）、`path`（相對 `--root`、用 `/` 分隔的展開後路徑）、`exists`（bool）、`mtime`（字串或 `null`）。exit 2 時為 `[]`。
+- `status`：全部都在 `"all"`／有在有不在 `"partial"`／全部不在 `"missing"`；exit 2 時為 `"error"`。
+- `first_present`：照順序第一個在的檔的 `path`；全部不在或 exit 2 時為 `null`（呼叫端「先用首選、沒有再用備用」就看這個欄位）。
 - `missing`：不在的檔的 `path` 清單，順序同 `files`；exit 2 時為 `[]`。
 - `error`：正常時 `null`；exit 2 時為以 B1 代碼開頭的非空字串。
 - 輸出**不得**含 `--root` 的實際路徑（避免把私人路徑帶進日報）。
@@ -169,13 +170,13 @@ JSON 鍵**剛好** `date`、`files`、`status`、`missing`、`error` 五個。
 
 | 情況 | exit |
 |---|---|
-| 至少一個在（`both`／`primary_only`／`fallback_only`） | 0 |
-| 兩個都不在（`missing`） | 3 |
+| 至少一個在（`all`／`partial`） | 0 |
+| 全部不在（`missing`） | 3 |
 | 參數錯（B1） | 2 |
 
 ### B5 不讀內容的證據
 
-主檔權限設成 `000`（Linux，非 root）時，腳本仍要回報 `exists=true` 且 exit 0（`stat` 不需要讀權限；若實作偷讀內容就會失敗）。
+第一個樣板對到的檔權限設成 `000`（Linux，非 root）時，腳本仍要回報 `exists=true` 且 exit 0（`stat` 不需要讀權限；若實作偷讀內容就會失敗）。
 
 ## T1 測試
 
@@ -189,8 +190,8 @@ JSON 鍵**剛好** `date`、`files`、`status`、`missing`、`error` 五個。
   2. A：exit 2 各路：空頁、只有誘餌 `h2`、每個 `<article>` 都沒有有效日期、重複版號、`bad_previous_version`、`bad_url`（`file://`，且斷言 `urlopen` 沒被呼叫）、mock `urlopen` raise `HTTPError(404)` 與 `URLError`；每一路都斷言 `version is None` 且不等於上一版。
   3. A：mock `urlopen` 回傳 fixture bytes 時，結果與 `--input-file` 相同，且 `urlopen` 收到的 URL 就是 `--url` 給的值、timeout 等於 `--timeout`。
   4. A：`--text-line` 三種輸出（0、10、2）逐字比對 A5。
-  5. B：四種狀態 `both`／`primary_only`／`fallback_only`／`missing` 與 exit 0／0／0／3；`mtime` 符合 `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+09:00$` 且換算回去等於設定的時間戳。
-  6. B：只放「前一天」的兩個檔 → `missing`、exit 3；同名資料夾 → 不在；自訂樣板生效；`bad_pattern`（`../x`、絕對路徑、`{foo}`）、`bad_date`、`bad_root` → exit 2。
+  5. B：用 `--pattern a/report-{YYYY-MM-DD}.json --pattern b/report_{YYYYMMDD}.md` 跑四種情況（兩檔都在、只有第一個、只有第二個、都不在）→ `status` 依序 `all`／`partial`／`partial`／`missing`、`first_present` 依序第一個／第一個／第二個／`null`、exit 0／0／0／3；只給一個 `--pattern` 也能跑；`--pattern` 一個都沒給 → exit 2；`mtime` 符合 `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+09:00$` 且換算回去等於設定的時間戳。
+  6. B：只放「前一天」的兩個檔 → `missing`、exit 3；同名資料夾 → 不在；三個 `--pattern` 時順序與 `order` 正確；`bad_pattern`（`../x`、絕對路徑、`{foo}`、`{date}`）、`bad_date`、`bad_root` → exit 2。
   7. B：跑完前後，暫存目錄下所有路徑與 mtime 完全相同（沒寫檔）。
 
 ## Definition of done（全部可機器判定）
@@ -211,14 +212,15 @@ JSON 鍵**剛好** `date`、`files`、`status`、`missing`、`error` 五個。
 - **G3 A 行為**：閘門自己組參數跑 `python routines/changelog_version_check.py --input-file routines/fixtures/changelog_sample.html --previous-version ...`，逐項比對 T1 第 1 條的 exit code、JSON 五鍵與值、`new_entries` 內容（照 A6 表，閘門內建成常數，不在執行時解析 spec）；JSON 第一行是純 ASCII。
 - **G4 A 讀不到**：(a) 閘門在 127.0.0.1 開一個立刻關閉的埠，`--url http://127.0.0.1:<該埠>/` → exit 2、`version` 為 null、`error` 以 `fetch_failed` 開頭；(b) `--url file:///etc/hostname` → exit 2、`bad_url`；(c) 暫存檔寫空頁、只有誘餌的頁 → exit 2、`parse_failed`；(d) 上述每一路加 `--text-line`，第二行剛好 `Changelog 本次未能讀取`。全程不連 127.0.0.1 以外的位址。
 - **G5 A 文字行**：exit 0 與 10 的 `--text-line` 輸出逐字等於 A5。
-- **G6 B 行為**：暫存目錄建檔、`os.utime` 設固定時間，跑四種狀態與「只有前一天的檔」→ exit 0／0／0／3／3；`files`、`status`、`missing` 對預期；設 `TZ=UTC` 與 `TZ=America/New_York` 各跑一次，`mtime` 都是 `+09:00` 且相同；輸出不含暫存根目錄字串；權限 `000` 的主檔仍 `exists=true`（root 執行時印 `[BLOCKED]` 不算紅）。
+- **G6 B 行為**：暫存目錄建檔、`os.utime` 設固定時間，用 `--pattern a/report-{YYYY-MM-DD}.json --pattern b/report_{YYYYMMDD}.md` 跑 T1 第 5 條的四種情況與「只有前一天的檔」→ exit 0／0／0／3／3；`files`、`status`、`first_present`、`missing` 對預期；不給 `--pattern` → exit 2；設 `TZ=UTC` 與 `TZ=America/New_York` 各跑一次，`mtime` 都是 `+09:00` 且相同；輸出不含暫存根目錄字串；權限 `000` 的第一個檔仍 `exists=true`（root 執行時印 `[BLOCKED]` 不算紅）。
 - **G7 沒寫檔（動態）**：G3～G6 每次執行前後，對暫存目錄與 repo 活檔（略 `.git`、`__pycache__`）算路徑集合與 sha256，完全相同。
 - **G8 測試全綠且離線**：用一個先把 `socket.socket.connect` 換成「呼叫就 raise」再跑 `unittest discover -s routines/tests` 的包裝程式執行，exit 0，`Ran N tests` 的 N ≥ 16。
 - **G9 突變必須紅**：在暫存複本對腳本尾端附加包裝（不依賴實作內部寫法），每個突變都要讓 T1 指令 exit 非 0：
   - **M1 讀不到時回填上一版**：A 的 `main` 包一層，exit 2 時把輸出 `version` 改成 `--previous-version` 的值。
   - **M2 字串比版號**：A 改成以字串比較判定「較新」（`v2.9.10` 會被判成比 `v2.10.0` 新）。
-  - **M3 找前一天**：B 的 `main` 包一層，主檔不在時改看前一天的主檔。
+  - **M3 找前一天**：B 的 `main` 包一層，第一個樣板的檔不在時改看前一天的同一個檔。
 - **G10 公開 repo 衛生與回歸**：五檔符合 C4；`python tools/check_010.py`、`python tools/check_011.py` exit 0。
+- **G11 不洩露私人資料夾結構**：對 `routines/` 底下所有檔與 `specs/012-routine-scripts.md`，不分大小寫搜尋閘門內建的禁字清單，一個都不得出現。禁字在閘門裡用字串拼接寫（避免閘門自己或本 spec 命中），至少包含：底線加 h、o、r、n 四字母；r、e、d、d、i、t 六字母；v、a、u、l、t 五字母；機器名與使用者帳號名（由 Clau小羊 在閘門交接時私下提供給 Gpt小豬，以拼接形式寫進閘門，不寫進本 spec）。另外確認 `daily_file_presence.py` 的 argparse 定義裡 `--pattern` 沒有 `default`。
 
 ## 範圍與 PR 形狀（CI 會怎麼判）
 
