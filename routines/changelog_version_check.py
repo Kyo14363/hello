@@ -93,7 +93,14 @@ def _fetch(url, timeout):
             return response.read(_MAX_BYTES + 1), None
     except urllib.error.HTTPError as exc:
         # HTTPError is a URLError. It has to be handled first.
-        return None, "http_status " + str(getattr(exc, "code", ""))
+        status = getattr(exc, "code", "")
+        closer = getattr(exc, "close", None)
+        if closer is not None:
+            try:
+                closer()
+            except OSError:
+                pass
+        return None, "http_status " + str(status)
     except urllib.error.URLError:
         return None, "fetch_failed"
     except (OSError, ValueError):
