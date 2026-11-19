@@ -6,15 +6,16 @@
 | Repo | https://github.com/Kyo14363/hello （程式放新子目錄 `routines/`） |
 | Upstream | 擁有者 2026-11-17 核准「把兩個日更例行的機械步驟改成腳本試做」。與 001～011 互不相依，不 import `src/`、`workbench/` 任何模組 |
 | Implementer | spec **Clau小羊**；閘門與鎖 **Gpt小豬**；實作 **Gemi小狗**（Cursor 雲端 agent）；驗收與合併 **Gro小貓** |
+| expected_paths | `specs/012-routine-scripts.md`、`tools/check_012.py`、`routines/changelog_version_check.py`、`routines/daily_file_presence.py`、`routines/fixtures/changelog_sample.html`、`routines/tests/test_changelog_version_check.py`、`routines/tests/test_daily_file_presence.py` |
 | Definition of done | 見下方「Definition of done」各條，全部可由程式判定 |
 
-> ⚠ 本檔刻意**不放** `expected_paths` 表格列，閘門 PR 才把下方清單移進上方表格。做法與 008、010、011 相同（011：spec PR #70 → 閘門 PR #72 → 實作 PR #73）。
+> `expected_paths` 已在上方表格。做法與 008、010、011 相同（011：spec PR #70 → 閘門 PR #72 → 實作 PR #73）。
 
 本單兩支腳本只做「讀」：一支讀一個公開 changelog 網頁比版號，一支依呼叫端給的樣板，看某資料夾裡今天的檔在不在。**接不接上例行、什麼時候接，由各例行的負責 Bot 在本單合併後自己決定，不在本單範圍。** 本檔所有網址、版號、日期、條目文字都是**假資料**。
 
-## expected_paths（閘門 PR 時移進表格）
+## expected_paths
 
-閘門 PR 在上方表格加一列：第一格寫 `expected_paths`，第二格依序列出下面七個路徑，各自用反引號包住、以「、」分隔（與 007、008、010、011 同格式）。`ci_run_gates.py` 以完全相同的字串比對，不支援萬用字元。
+上方表格的 `expected_paths` 列就是下面七個路徑，各自用反引號包住、以「、」分隔（與 007、008、010、011 同格式）。`ci_run_gates.py` 以完全相同的字串比對，不支援萬用字元。
 
 1. `specs/012-routine-scripts.md`
 2. `tools/check_012.py`
@@ -220,7 +221,7 @@ JSON 鍵**剛好** `date`、`files`、`status`、`first_present`、`missing`、`
   - **M2 字串比版號**：A 改成以字串比較判定「較新」（`v2.9.10` 會被判成比 `v2.10.0` 新）。
   - **M3 找前一天**：B 的 `main` 包一層，第一個樣板的檔不在時改看前一天的同一個檔。
 - **G10 公開 repo 衛生與回歸**：五檔符合 C4；`python tools/check_010.py`、`python tools/check_011.py` exit 0。
-- **G11 不洩露私人資料夾結構**：對 `routines/` 底下所有檔與 `specs/012-routine-scripts.md`，不分大小寫搜尋閘門內建的禁字清單，一個都不得出現。禁字在閘門裡用字串拼接寫（避免閘門自己或本 spec 命中），至少包含：底線加 h、o、r、n 四字母；r、e、d、d、i、t 六字母；v、a、u、l、t 五字母；機器名與使用者帳號名（由 Clau小羊 在閘門交接時私下提供給 Gpt小豬，以拼接形式寫進閘門，不寫進本 spec）。另外確認 `daily_file_presence.py` 的 argparse 定義裡 `--pattern` 沒有 `default`。
+- **G11 結構**（比本段舊稿更窄）：只檢查 `routines/daily_file_presence.py` 的 argparse。`--pattern` 必填且沒有預設值（`required=True`，該呼叫沒有 `default=`），原始碼也沒有把帶佔位符的路徑樣板寫死當成預設。不在閘門或本檔放名稱清單；名稱比對由驗收者離線做。
 
 ## 範圍與 PR 形狀（CI 會怎麼判）
 
